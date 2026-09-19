@@ -3,7 +3,8 @@
 part of 'database.dart';
 
 // ignore_for_file: type=lint
-class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
+class $AccountsTable extends Accounts
+    with TableInfo<$AccountsTable, AccountRow> {
   @override
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
@@ -141,7 +142,7 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
   static const String $name = 'accounts';
   @override
   VerificationContext validateIntegrity(
-    Insertable<Account> instance, {
+    Insertable<AccountRow> instance, {
     bool isInserting = false,
   }) {
     final context = VerificationContext();
@@ -219,9 +220,9 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
   @override
   Set<GeneratedColumn> get $primaryKey => {id};
   @override
-  Account map(Map<String, dynamic> data, {String? tablePrefix}) {
+  AccountRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
-    return Account(
+    return AccountRow(
       id: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}id'],
@@ -271,7 +272,7 @@ class $AccountsTable extends Accounts with TableInfo<$AccountsTable, Account> {
   }
 }
 
-class Account extends DataClass implements Insertable<Account> {
+class AccountRow extends DataClass implements Insertable<AccountRow> {
   final int id;
   final String name;
   final String type;
@@ -282,7 +283,7 @@ class Account extends DataClass implements Insertable<Account> {
   final bool isActive;
   final DateTime createdAt;
   final String? notes;
-  const Account({
+  const AccountRow({
     required this.id,
     required this.name,
     required this.type,
@@ -335,12 +336,12 @@ class Account extends DataClass implements Insertable<Account> {
     );
   }
 
-  factory Account.fromJson(
+  factory AccountRow.fromJson(
     Map<String, dynamic> json, {
     ValueSerializer? serializer,
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
-    return Account(
+    return AccountRow(
       id: serializer.fromJson<int>(json['id']),
       name: serializer.fromJson<String>(json['name']),
       type: serializer.fromJson<String>(json['type']),
@@ -370,7 +371,7 @@ class Account extends DataClass implements Insertable<Account> {
     };
   }
 
-  Account copyWith({
+  AccountRow copyWith({
     int? id,
     String? name,
     String? type,
@@ -381,7 +382,7 @@ class Account extends DataClass implements Insertable<Account> {
     bool? isActive,
     DateTime? createdAt,
     Value<String?> notes = const Value.absent(),
-  }) => Account(
+  }) => AccountRow(
     id: id ?? this.id,
     name: name ?? this.name,
     type: type ?? this.type,
@@ -393,8 +394,8 @@ class Account extends DataClass implements Insertable<Account> {
     createdAt: createdAt ?? this.createdAt,
     notes: notes.present ? notes.value : this.notes,
   );
-  Account copyWithCompanion(AccountsCompanion data) {
-    return Account(
+  AccountRow copyWithCompanion(AccountsCompanion data) {
+    return AccountRow(
       id: data.id.present ? data.id.value : this.id,
       name: data.name.present ? data.name.value : this.name,
       type: data.type.present ? data.type.value : this.type,
@@ -414,7 +415,7 @@ class Account extends DataClass implements Insertable<Account> {
 
   @override
   String toString() {
-    return (StringBuffer('Account(')
+    return (StringBuffer('AccountRow(')
           ..write('id: $id, ')
           ..write('name: $name, ')
           ..write('type: $type, ')
@@ -445,7 +446,7 @@ class Account extends DataClass implements Insertable<Account> {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      (other is Account &&
+      (other is AccountRow &&
           other.id == this.id &&
           other.name == this.name &&
           other.type == this.type &&
@@ -458,7 +459,7 @@ class Account extends DataClass implements Insertable<Account> {
           other.notes == this.notes);
 }
 
-class AccountsCompanion extends UpdateCompanion<Account> {
+class AccountsCompanion extends UpdateCompanion<AccountRow> {
   final Value<int> id;
   final Value<String> name;
   final Value<String> type;
@@ -494,7 +495,7 @@ class AccountsCompanion extends UpdateCompanion<Account> {
     this.notes = const Value.absent(),
   }) : name = Value(name),
        type = Value(type);
-  static Insertable<Account> custom({
+  static Insertable<AccountRow> custom({
     Expression<int>? id,
     Expression<String>? name,
     Expression<String>? type,
@@ -1922,14 +1923,17 @@ class $$AccountsTableTableManager
         RootTableManager<
           _$AppDatabase,
           $AccountsTable,
-          Account,
+          AccountRow,
           $$AccountsTableFilterComposer,
           $$AccountsTableOrderingComposer,
           $$AccountsTableAnnotationComposer,
           $$AccountsTableCreateCompanionBuilder,
           $$AccountsTableUpdateCompanionBuilder,
-          (Account, BaseReferences<_$AppDatabase, $AccountsTable, Account>),
-          Account,
+          (
+            AccountRow,
+            BaseReferences<_$AppDatabase, $AccountsTable, AccountRow>,
+          ),
+          AccountRow,
           PrefetchHooks Function()
         > {
   $$AccountsTableTableManager(_$AppDatabase db, $AccountsTable table)
@@ -1994,8 +1998,8 @@ class $$AccountsTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable<$AccountsTable, Account>(table),
-                  BaseReferences<_$AppDatabase, $AccountsTable, Account>(
+                  e.readTable<$AccountsTable, AccountRow>(table),
+                  BaseReferences<_$AppDatabase, $AccountsTable, AccountRow>(
                     db,
                     table,
                     e,
@@ -2012,14 +2016,14 @@ typedef $$AccountsTableProcessedTableManager =
     ProcessedTableManager<
       _$AppDatabase,
       $AccountsTable,
-      Account,
+      AccountRow,
       $$AccountsTableFilterComposer,
       $$AccountsTableOrderingComposer,
       $$AccountsTableAnnotationComposer,
       $$AccountsTableCreateCompanionBuilder,
       $$AccountsTableUpdateCompanionBuilder,
-      (Account, BaseReferences<_$AppDatabase, $AccountsTable, Account>),
-      Account,
+      (AccountRow, BaseReferences<_$AppDatabase, $AccountsTable, AccountRow>),
+      AccountRow,
       PrefetchHooks Function()
     >;
 typedef $$CategoriesTableCreateCompanionBuilder = CategoriesCompanion Function({
