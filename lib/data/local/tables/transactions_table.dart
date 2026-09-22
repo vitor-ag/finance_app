@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'accounts_table.dart';
 import 'categories_table.dart';
 
+@DataClassName('TransactionRow')
 class Transactions extends Table {
   IntColumn get id => integer().autoIncrement()();
 
