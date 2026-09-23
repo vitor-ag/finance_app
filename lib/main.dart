@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/accounts/presentation/screens/accounts_screen.dart';
 import 'features/categories/presentation/screens/categories_screen.dart';
+import 'features/transactions/presentation/screens/transactions_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
@@ -31,8 +32,6 @@ class MyApp extends StatelessWidget {
   }
 }
 
-// Temporary root navigation — will be replaced by the real bottom
-// navigation bar once more modules (transactions, cards, etc.) exist.
 class RootScreen extends StatefulWidget {
   const RootScreen({super.key});
 
@@ -45,6 +44,7 @@ class _RootScreenState extends State<RootScreen> {
 
   static const _screens = [
     AccountsScreen(),
+    TransactionsScreen(),
     CategoriesScreen(),
   ];
 
@@ -60,6 +60,11 @@ class _RootScreenState extends State<RootScreen> {
             icon: Icon(Icons.account_balance_wallet_outlined),
             selectedIcon: Icon(Icons.account_balance_wallet),
             label: 'Contas',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.swap_vert),
+            selectedIcon: Icon(Icons.swap_vert),
+            label: 'Lançamentos',
           ),
           NavigationDestination(
             icon: Icon(Icons.category_outlined),
