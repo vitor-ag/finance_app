@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'tables/accounts_table.dart';
 import 'tables/categories_table.dart';
 import 'tables/transactions_table.dart';
+import 'tables/bills_table.dart'; 
 
 part 'database.g.dart';
 

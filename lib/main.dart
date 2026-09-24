@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/accounts/presentation/screens/accounts_screen.dart';
+import 'features/bills/presentation/screens/bills_screen.dart';
 import 'features/categories/presentation/screens/categories_screen.dart';
 import 'features/transactions/presentation/screens/transactions_screen.dart';
 
@@ -45,6 +46,7 @@ class _RootScreenState extends State<RootScreen> {
   static const _screens = [
     AccountsScreen(),
     TransactionsScreen(),
+    BillsScreen(),
     CategoriesScreen(),
   ];
 
@@ -65,6 +67,11 @@ class _RootScreenState extends State<RootScreen> {
             icon: Icon(Icons.swap_vert),
             selectedIcon: Icon(Icons.swap_vert),
             label: 'Lançamentos',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.receipt_long_outlined),
+            selectedIcon: Icon(Icons.receipt_long),
+            label: 'A Pagar',
           ),
           NavigationDestination(
             icon: Icon(Icons.category_outlined),
