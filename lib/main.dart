@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'features/accounts/presentation/screens/accounts_screen.dart';
+import 'features/bills/presentation/providers/bill_providers.dart';
 import 'features/bills/presentation/screens/bills_screen.dart';
 import 'features/categories/presentation/screens/categories_screen.dart';
 import 'features/recurrences/presentation/providers/recurrence_providers.dart';
@@ -19,13 +21,39 @@ class MyApp extends ConsumerStatefulWidget {
 }
 
 class _MyAppState extends ConsumerState<MyApp> {
+  late final AppLifecycleListener _lifecycle;
+
   @override
   void initState() {
     super.initState();
-    // Catch up on any recurrence occurrence due since the app was last opened.
-    Future.microtask(
-      () => ref.read(recurrenceRepositoryProvider).generateDueOccurrences(),
-    );
+    _lifecycle = AppLifecycleListener(onResume: _syncSchedules);
+    Future.microtask(_syncSchedules);
+  }
+
+  Future<void> _syncSchedules() async {
+    if (!mounted) return;
+    try {
+      await Future.wait([
+        ref.read(recurrenceRepositoryProvider).generateDueOccurrences(),
+        ref.read(billRepositoryProvider).generateDueBills(),
+      ]);
+    } catch (error, stack) {
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          context: ErrorDescription(
+            'atualizando lançamentos e contas recorrentes',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   @override

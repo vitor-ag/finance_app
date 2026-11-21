@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/money.dart';
 import '../../domain/entities/account.dart';
 
 class AccountCard extends StatelessWidget {
@@ -47,14 +48,10 @@ class AccountCard extends StatelessWidget {
     }
   }
 
-  String _formatCurrency(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isNegative = account.currentBalance < 0;
+    final isNegative = account.currentBalanceCents < 0;
 
     return Card(
       elevation: 0,
@@ -96,7 +93,7 @@ class AccountCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  _formatCurrency(account.currentBalance),
+                  formatBrl(account.currentBalanceCents),
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 16,

@@ -15,8 +15,8 @@ void main() {
       Account(
         name: 'Nubank',
         type: 'digital',
-        initialBalance: 100,
-        currentBalance: 100,
+        initialBalanceCents: 10000,
+        currentBalanceCents: 10000,
         createdAt: DateTime.now(),
       ),
     );
@@ -25,7 +25,7 @@ void main() {
 
     expect(account, isNotNull);
     expect(account!.name, 'Nubank');
-    expect(account.currentBalance, 100);
+    expect(account.currentBalanceCents, 10000);
 
     await db.close();
   });
@@ -40,15 +40,15 @@ void main() {
       Account(
         name: 'Conta',
         type: 'checking',
-        initialBalance: 100,
-        currentBalance: 100,
+        initialBalanceCents: 10000,
+        currentBalanceCents: 10000,
         createdAt: now,
       ),
     );
     final stale = (await accounts.getAccountById(id))!;
     final income = Transaction(
       type: 'income',
-      amount: 50,
+      amountCents: 5000,
       date: now,
       accountId: id,
       createdAt: now,
@@ -59,7 +59,7 @@ void main() {
 
     final archived = (await accounts.getAccountById(id))!;
     expect(archived.name, 'Conta principal');
-    expect(archived.currentBalance, 150);
+    expect(archived.currentBalanceCents, 15000);
     expect(archived.isActive, isFalse);
     await expectLater(transactions.createTransaction(income), throwsStateError);
     expect(

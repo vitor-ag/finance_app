@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+
 import 'accounts_table.dart';
 import 'categories_table.dart';
 
@@ -10,7 +11,7 @@ class Recurrences extends Table {
   // 'income', 'expense', 'transfer'
   TextColumn get type => text()();
 
-  RealColumn get amount => real()();
+  IntColumn get amountCents => integer()();
 
   IntColumn get accountId => integer().references(Accounts, #id)();
   IntColumn get destinationAccountId =>

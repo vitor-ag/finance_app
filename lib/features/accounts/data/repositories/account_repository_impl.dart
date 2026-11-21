@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
 
+import '../../../../core/money.dart';
+
 import '../../../../data/local/database.dart';
 import '../../domain/entities/account.dart';
 import '../../domain/repositories/account_repository.dart';
@@ -14,8 +16,8 @@ class AccountRepositoryImpl implements AccountRepository {
       id: row.id,
       name: row.name,
       type: row.type,
-      initialBalance: row.initialBalance,
-      currentBalance: row.currentBalance,
+      initialBalanceCents: row.initialBalanceCents,
+      currentBalanceCents: row.currentBalanceCents,
       color: row.color,
       icon: row.icon,
       isActive: row.isActive,
@@ -42,14 +44,16 @@ class AccountRepositoryImpl implements AccountRepository {
 
   @override
   Future<int> createAccount(Account account) {
+    validateBalanceCents(account.initialBalanceCents);
+    validateBalanceCents(account.currentBalanceCents);
     return db
         .into(db.accounts)
         .insert(
           AccountsCompanion.insert(
             name: account.name,
             type: account.type,
-            initialBalance: Value(account.initialBalance),
-            currentBalance: Value(account.currentBalance),
+            initialBalanceCents: Value(account.initialBalanceCents),
+            currentBalanceCents: Value(account.currentBalanceCents),
             color: Value(account.color),
             icon: Value(account.icon),
             notes: Value(account.notes),

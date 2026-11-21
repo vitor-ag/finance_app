@@ -1,16 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/money.dart';
 import '../../../../core/widgets/record_actions.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
 import '../../../bills/presentation/providers/bill_providers.dart';
 import '../../../categories/presentation/providers/category_providers.dart';
 import '../../domain/entities/transaction.dart';
+import '../../domain/entities/transaction_revision.dart';
 import '../providers/transaction_providers.dart';
 import '../widgets/transaction_form.dart';
 import '../widgets/transaction_tile.dart';
 
-enum _EntryAction { edit, duplicate, delete }
+enum _EntryAction { edit, duplicate, delete, revisions }
 
 class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
@@ -62,6 +64,11 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
               title: const Text('Duplicar'),
               onTap: () => Navigator.pop(context, _EntryAction.duplicate),
             ),
+            ListTile(
+              leading: const Icon(Icons.history),
+              title: const Text('Histórico de alterações'),
+              onTap: () => Navigator.pop(context, _EntryAction.revisions),
+            ),
             if (!isBillPayment)
               ListTile(
                 leading: const Icon(Icons.delete_outline),
@@ -80,8 +87,89 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         await _openForm(source: entry, duplicate: true);
       case _EntryAction.delete:
         await _changeTrashStatus(entry, restore: false);
+      case _EntryAction.revisions:
+        await _showRevisions(entry.id!);
     }
   }
+
+  Future<void> _showRevisions(int id) {
+    final revisions = ref.read(transactionRepositoryProvider).listRevisions(id);
+    final accounts = ref.read(allAccountsProvider).valueOrNull ?? [];
+    final categories = ref.read(allCategoriesProvider()).valueOrNull ?? [];
+    final accountNames = {
+      for (final account in accounts) account.id: account.name,
+    };
+    final categoryNames = {
+      for (final category in categories) category.id: category.name,
+    };
+    return showModalBottomSheet<void>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: FutureBuilder<List<TransactionRevision>>(
+          future: revisions,
+          builder: (context, snapshot) {
+            final history = snapshot.data ?? [];
+            return ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  'Histórico de alterações',
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                if (snapshot.connectionState != ConnectionState.done)
+                  const Center(child: CircularProgressIndicator())
+                else if (snapshot.hasError)
+                  const Text('Não foi possível carregar as alterações.')
+                else if (history.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text('Nenhuma alteração registrada.'),
+                  ),
+                for (final revision in history)
+                  ListTile(
+                    title: Text(switch (revision.action) {
+                      'edit' => 'Editado',
+                      'delete' => 'Movido para a lixeira',
+                      _ => 'Restaurado',
+                    }),
+                    subtitle: Text(
+                      [
+                        'Em ${_dateLabel(revision.recordedAt)}',
+                        'Antes da alteração',
+                        '${_entryType(revision.previous.type)} · ${formatBrl(revision.previous.amountCents)}',
+                        'Data do lançamento: ${_dateLabel(revision.previous.date)}',
+                        accountNames[revision.previous.accountId] ??
+                            'Conta #${revision.previous.accountId}',
+                        if (accountNames[revision.previous.destinationAccountId]
+                            case final destination?)
+                          'Destino: $destination',
+                        if (categoryNames[revision.previous.categoryId]
+                            case final category?)
+                          category,
+                        if (revision.previous.incomeSource case final source?)
+                          source,
+                        if (revision.previous.description
+                            case final description?)
+                          description,
+                      ].join('\n'),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  String _dateLabel(DateTime date) => '${date.day}/${date.month}/${date.year}';
+
+  String _entryType(String type) => switch (type) {
+    'income' => 'Entrada',
+    'transfer' => 'Transferência',
+    _ => 'Saída',
+  };
 
   Future<void> _changeTrashStatus(
     Transaction entry, {

@@ -1,9 +1,11 @@
 import '../entities/transaction.dart';
+import '../entities/transaction_revision.dart';
 
 abstract class TransactionRepository {
   Stream<List<Transaction>> watchAllTransactions();
   Stream<List<Transaction>> watchDeletedTransactions();
   Future<Transaction?> getTransactionById(int id);
+  Future<List<TransactionRevision>> listRevisions(int id);
 
   /// Creates a transaction AND applies its balance effect atomically.
   Future<int> createTransaction(Transaction transaction);

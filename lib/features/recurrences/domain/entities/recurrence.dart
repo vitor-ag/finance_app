@@ -4,7 +4,7 @@ class Recurrence {
   final int? id;
   final String name;
   final String type; // 'income', 'expense', 'transfer'
-  final double amount;
+  final int amountCents;
   final int accountId;
   final int? destinationAccountId;
   final int? categoryId;
@@ -24,7 +24,7 @@ class Recurrence {
     this.id,
     required this.name,
     required this.type,
-    required this.amount,
+    required this.amountCents,
     required this.accountId,
     this.destinationAccountId,
     this.categoryId,
@@ -45,7 +45,7 @@ class Recurrence {
     int? id,
     String? name,
     String? type,
-    double? amount,
+    int? amountCents,
     int? accountId,
     int? destinationAccountId,
     int? categoryId,
@@ -65,7 +65,7 @@ class Recurrence {
       id: id ?? this.id,
       name: name ?? this.name,
       type: type ?? this.type,
-      amount: amount ?? this.amount,
+      amountCents: amountCents ?? this.amountCents,
       accountId: accountId ?? this.accountId,
       destinationAccountId: destinationAccountId ?? this.destinationAccountId,
       categoryId: categoryId ?? this.categoryId,

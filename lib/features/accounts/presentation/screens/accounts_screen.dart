@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/money.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/widgets/record_actions.dart';
@@ -9,10 +12,6 @@ import '../widgets/account_card.dart';
 class AccountsScreen extends ConsumerWidget {
   const AccountsScreen({super.key});
 
-  String _formatCurrency(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
-  }
-
   Future<void> _showAccountForm(
     BuildContext context,
     WidgetRef ref, {
@@ -20,7 +19,7 @@ class AccountsScreen extends ConsumerWidget {
   }) async {
     final form = GlobalKey<FormState>();
     var name = account?.name ?? '';
-    var balance = 0.0;
+    var balance = 0;
     var selectedType = account?.type ?? 'digital';
     var saving = false;
     const types = {
@@ -105,15 +104,12 @@ class AccountsScreen extends ConsumerWidget {
                         ),
                         validator: (value) {
                           final input = value?.trim() ?? '';
-                          final parsed = double.tryParse(
-                            input.replaceAll(',', '.'),
-                          );
-                          return input.isEmpty || parsed?.isFinite == true
+                          final parsed = parseBrlCents(input);
+                          return input.isEmpty || parsed != null
                               ? null
                               : 'Informe um saldo válido.';
                         },
-                        onSaved: (value) => balance =
-                            double.tryParse(value!.replaceAll(',', '.')) ?? 0,
+                        onSaved: (value) => balance = parseBrlCents(value) ?? 0,
                         decoration: const InputDecoration(
                           labelText: 'Saldo Inicial (R\$)',
                           border: OutlineInputBorder(),
@@ -138,8 +134,8 @@ class AccountsScreen extends ConsumerWidget {
                                       Account(
                                         name: name,
                                         type: selectedType,
-                                        initialBalance: balance,
-                                        currentBalance: balance,
+                                        initialBalanceCents: balance,
+                                        currentBalanceCents: balance,
                                         createdAt: DateTime.now(),
                                       ),
                                     );
@@ -216,9 +212,10 @@ class AccountsScreen extends ConsumerWidget {
         error: (error, _) =>
             Center(child: Text('Erro ao carregar contas: $error')),
         data: (accounts) {
-          final totalBalance = accounts.fold<double>(
-            0.0,
-            (sum, item) => sum + (item.isActive ? item.currentBalance : 0.0),
+          final totalBalance = formatBrlTotal(
+            accounts
+                .where((item) => item.isActive)
+                .map((item) => item.currentBalanceCents),
           );
 
           return CustomScrollView(
@@ -250,7 +247,7 @@ class AccountsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        _formatCurrency(totalBalance),
+                        totalBalance,
                         style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,

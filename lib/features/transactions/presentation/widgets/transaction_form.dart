@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/money.dart';
 import '../../../../core/widgets/record_actions.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
 import '../../../categories/presentation/providers/category_providers.dart';
@@ -24,8 +25,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
   int? _accountId;
   int? _destinationId;
   int? _categoryId;
-  double _amount = 0;
+  int _amount = 0;
   String? _description;
+  String? _incomeSource;
   bool _saving = false;
 
   Transaction? get _editing => widget.duplicate ? null : widget.source;
@@ -40,9 +42,6 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     _destinationId = source?.destinationAccountId;
     _categoryId = source?.categoryId;
   }
-
-  double? _parseAmount(String? text) =>
-      double.tryParse((text ?? '').trim().replaceAll(',', '.'));
 
   Future<void> _pickDate() async {
     final first = DateTime(1900);
@@ -65,12 +64,13 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
     final entry = Transaction(
       id: _editing?.id,
       type: _type,
-      amount: _amount,
+      amountCents: _amount,
       date: _date,
       accountId: _accountId!,
       destinationAccountId: _type == 'transfer' ? _destinationId : null,
       categoryId: _type == 'transfer' ? null : _categoryId,
       description: _description,
+      incomeSource: _type == 'income' ? _incomeSource : null,
       createdAt: _editing?.createdAt ?? DateTime.now(),
     );
     try {
@@ -144,10 +144,9 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
               ),
               const SizedBox(height: 12),
               TextFormField(
-                initialValue: widget.source?.amount.toString().replaceAll(
-                  '.',
-                  ',',
-                ),
+                initialValue: widget.source == null
+                    ? null
+                    : brlInput(widget.source!.amountCents),
                 keyboardType: const TextInputType.numberWithOptions(
                   decimal: true,
                 ),
@@ -156,12 +155,12 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   border: OutlineInputBorder(),
                 ),
                 validator: (text) {
-                  final value = _parseAmount(text);
-                  return value == null || !value.isFinite || value <= 0
+                  final value = parseBrlCents(text);
+                  return value == null || value <= 0
                       ? 'Informe um valor maior que zero.'
                       : null;
                 },
-                onSaved: (text) => _amount = _parseAmount(text)!,
+                onSaved: (text) => _amount = parseBrlCents(text)!,
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<int>(
@@ -252,6 +251,18 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
                   _description = text.isEmpty ? null : text;
                 },
               ),
+              if (_type == 'income') ...[
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: _incomeSource ?? widget.source?.incomeSource,
+                  decoration: const InputDecoration(
+                    labelText: 'Fonte da receita (opcional)',
+                    border: OutlineInputBorder(),
+                  ),
+                  onChanged: (value) => _incomeSource = value,
+                  onSaved: (value) => _incomeSource = value?.trim(),
+                ),
+              ],
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 title: const Text('Data do lançamento'),

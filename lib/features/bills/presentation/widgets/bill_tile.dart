@@ -1,21 +1,25 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/money.dart';
 import '../../domain/entities/bill.dart';
 
 class BillTile extends StatelessWidget {
   final Bill bill;
   final String? categoryName;
   final VoidCallback? onMarkAsPaid;
+  final VoidCallback? onEdit;
+  final VoidCallback? onCancel;
+  final VoidCallback? onStopRepeat;
 
   const BillTile({
     super.key,
     required this.bill,
     this.categoryName,
     this.onMarkAsPaid,
+    this.onEdit,
+    this.onCancel,
+    this.onStopRepeat,
   });
-
-  String _formatCurrency(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
-  }
 
   Color _statusColor(String status) {
     switch (status) {
@@ -58,8 +62,7 @@ class BillTile extends StatelessWidget {
         ),
       ),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
           radius: 20,
           backgroundColor: color.withValues(alpha: 0.15),
@@ -71,33 +74,70 @@ class BillTile extends StatelessWidget {
         ),
         subtitle: Text(
           'Vence em ${bill.dueDate.day}/${bill.dueDate.month}/${bill.dueDate.year}'
-          '${categoryName != null ? ' · $categoryName' : ''}',
+          '${categoryName != null ? ' · $categoryName' : ''}'
+          '${bill.repeatDay != null ? ' · Repetição mensal' : ''}',
           style: TextStyle(
             color: theme.colorScheme.onSurfaceVariant,
             fontSize: 12,
           ),
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              _formatCurrency(bill.amount),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  formatBrl(bill.amountCents),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _statusLabel(status),
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 2),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+            if (onEdit != null || onCancel != null || onStopRepeat != null)
+              PopupMenuButton<VoidCallback>(
+                tooltip: 'Ações da conta a pagar',
+                onSelected: (action) => action(),
+                itemBuilder: (_) => [
+                  if (onEdit != null)
+                    PopupMenuItem(
+                      value: onEdit,
+                      child: const Text('Editar conta'),
+                    ),
+                  if (onCancel != null)
+                    PopupMenuItem(
+                      value: onCancel,
+                      child: const Text('Cancelar conta'),
+                    ),
+                  if (onStopRepeat != null)
+                    PopupMenuItem(
+                      value: onStopRepeat,
+                      child: const Text('Parar repetição'),
+                    ),
+                ],
               ),
-              child: Text(
-                _statusLabel(status),
-                style: TextStyle(
-                    color: color, fontSize: 10, fontWeight: FontWeight.bold),
-              ),
-            ),
           ],
         ),
         onTap: (status == 'pending' || status == 'overdue')

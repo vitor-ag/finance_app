@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+
 import 'accounts_table.dart';
 import 'categories_table.dart';
 
@@ -8,7 +9,7 @@ class Bills extends Table {
   TextColumn get name => text().withLength(min: 1, max: 80)();
   IntColumn get categoryId =>
       integer().nullable().references(Categories, #id)();
-  RealColumn get amount => real()();
+  IntColumn get amountCents => integer()();
   DateTimeColumn get dueDate => dateTime()();
 
   // 'fixed', 'recurring', 'eventual'
@@ -23,6 +24,10 @@ class Bills extends Table {
 
   // Links to the Transaction created when this bill was marked as paid.
   IntColumn get paidTransactionId => integer().nullable()();
+
+  // Only the most recent bill in an active monthly series carries the day.
+  IntColumn get repeatDay => integer().nullable()();
+  IntColumn get previousBillId => integer().nullable().references(Bills, #id)();
 
   TextColumn get notes => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();

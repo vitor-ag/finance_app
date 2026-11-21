@@ -1,5 +1,8 @@
 import 'package:drift/drift.dart';
 
+import '../../../../core/calendar.dart';
+import '../../../../core/money.dart';
+
 import '../../../../data/local/database.dart';
 import '../../../transactions/data/repositories/transaction_repository_impl.dart';
 import '../../../transactions/domain/entities/transaction.dart';
@@ -18,7 +21,7 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
       id: row.id,
       name: row.name,
       type: row.type,
-      amount: row.amount,
+      amountCents: row.amountCents,
       accountId: row.accountId,
       destinationAccountId: row.destinationAccountId,
       categoryId: row.categoryId,
@@ -46,6 +49,26 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
 
   @override
   Future<int> createRecurrence(Recurrence recurrence) {
+    validatePositiveCents(recurrence.amountCents);
+    final start = calendarDate(recurrence.startDate);
+    final end = recurrence.endDate == null
+        ? null
+        : calendarDate(recurrence.endDate!);
+    if ((end != null && end.isBefore(start)) ||
+        (recurrence.maxOccurrences != null && recurrence.maxOccurrences! < 1)) {
+      throw StateError(
+        'Informe uma data final e um limite de ocorrências válidos.',
+      );
+    }
+    if (!const {'weekly', 'monthly', 'yearly'}.contains(recurrence.frequency) ||
+        !const {'income', 'expense', 'transfer'}.contains(recurrence.type) ||
+        (recurrence.type == 'transfer' &&
+            (recurrence.destinationAccountId == null ||
+                recurrence.destinationAccountId == recurrence.accountId))) {
+      throw StateError('Informe uma recorrência válida.');
+    }
+    final day = recurrence.dayOfMonth ?? start.day;
+    if (day < 1 || day > 31) throw StateError('Informe um dia válido.');
     return db.transaction(() async {
       for (final id in [
         recurrence.accountId,
@@ -58,41 +81,50 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
           throw StateError('Selecione uma conta ativa.');
         }
       }
-      return db
+      final id = await db
           .into(db.recurrences)
           .insert(
             RecurrencesCompanion.insert(
               name: recurrence.name,
               type: recurrence.type,
-              amount: recurrence.amount,
+              amountCents: recurrence.amountCents,
               accountId: recurrence.accountId,
               destinationAccountId: Value(recurrence.destinationAccountId),
               categoryId: Value(recurrence.categoryId),
               description: Value(recurrence.description),
               frequency: recurrence.frequency,
-              dayOfMonth: Value(recurrence.dayOfMonth),
+              dayOfMonth: Value(day),
               weekday: Value(recurrence.weekday),
-              startDate: recurrence.startDate,
-              endDate: Value(recurrence.endDate),
+              startDate: start,
+              endDate: Value(end),
               maxOccurrences: Value(recurrence.maxOccurrences),
-              nextOccurrenceDate: recurrence.startDate,
+              nextOccurrenceDate: start,
             ),
           );
+      await _generateRecurrence(id, calendarDate(DateTime.now()));
+      return id;
     });
   }
 
   @override
   Future<void> pauseRecurrence(int id) {
-    return (db.update(db.recurrences)..where((tbl) => tbl.id.equals(id))).write(
-      const RecurrencesCompanion(status: Value('paused')),
-    );
+    return (db.update(db.recurrences)
+          ..where((tbl) => tbl.id.equals(id) & tbl.status.equals('active')))
+        .write(const RecurrencesCompanion(status: Value('paused')));
   }
 
   @override
   Future<void> resumeRecurrence(int id) {
-    return (db.update(db.recurrences)..where((tbl) => tbl.id.equals(id))).write(
-      const RecurrencesCompanion(status: Value('active')),
-    );
+    return db.transaction(() async {
+      final resumed =
+          await (db.update(db.recurrences)..where(
+                (tbl) => tbl.id.equals(id) & tbl.status.equals('paused'),
+              ))
+              .write(const RecurrencesCompanion(status: Value('active')));
+      if (resumed != 0) {
+        await _generateRecurrence(id, calendarDate(DateTime.now()));
+      }
+    });
   }
 
   @override
@@ -104,7 +136,8 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
 
   @override
   Future<void> generateDueOccurrences() async {
-    final now = DateTime.now();
+    final today = calendarDate(DateTime.now());
+    final tomorrow = DateTime(today.year, today.month, today.day + 1);
 
     final recurrences = db.recurrences;
     final dueIds =
@@ -112,59 +145,60 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
               ..addColumns([recurrences.id])
               ..where(
                 recurrences.status.equals('active') &
-                    recurrences.nextOccurrenceDate.isSmallerOrEqualValue(now),
+                    recurrences.nextOccurrenceDate.isSmallerThanValue(tomorrow),
               ))
             .map((row) => row.read(recurrences.id)!)
             .get();
 
     for (final id in dueIds) {
-      await db.transaction(() async {
-        // Re-read the schedule inside the transaction in case another call
-        // advanced it or the user paused it after we selected the IDs.
-        final r =
-            await (db.select(recurrences)..where(
-                  (tbl) => tbl.id.equals(id) & tbl.status.equals('active'),
-                ))
-                .getSingleOrNull();
-        if (r == null || r.nextOccurrenceDate.isAfter(now)) return;
-
-        var nextDate = r.nextOccurrenceDate;
-        var generatedCount = r.generatedCount;
-        var finished = false;
-
-        while (!nextDate.isAfter(now)) {
-          if (r.endDate != null && nextDate.isAfter(r.endDate!)) {
-            finished = true;
-            break;
-          }
-          if (r.maxOccurrences != null && generatedCount >= r.maxOccurrences!) {
-            finished = true;
-            break;
-          }
-
-          await _createOccurrence(r, nextDate);
-          generatedCount++;
-          nextDate = _advance(nextDate, r.frequency, r.dayOfMonth, r.weekday);
-        }
-
-        await (db.update(
-          db.recurrences,
-        )..where((tbl) => tbl.id.equals(r.id))).write(
-          RecurrencesCompanion(
-            nextOccurrenceDate: Value(nextDate),
-            generatedCount: Value(generatedCount),
-            status: Value(finished ? 'finished' : 'active'),
-          ),
-        );
-      });
+      await db.transaction(() => _generateRecurrence(id, today));
     }
+  }
+
+  Future<void> _generateRecurrence(int id, DateTime today) async {
+    // Re-read the schedule inside the transaction in case another call
+    // advanced it or the user paused it after we selected the IDs.
+    final r =
+        await (db.select(db.recurrences)
+              ..where((tbl) => tbl.id.equals(id) & tbl.status.equals('active')))
+            .getSingleOrNull();
+    if (r == null) return;
+
+    var nextDate = calendarDate(r.nextOccurrenceDate);
+    if (nextDate.isAfter(today)) return;
+    final end = r.endDate == null ? null : calendarDate(r.endDate!);
+    final limit = r.maxOccurrences;
+    var generatedCount = r.generatedCount;
+    bool finished() =>
+        (end != null && nextDate.isAfter(end)) ||
+        (limit != null && generatedCount >= limit);
+
+    while (!nextDate.isAfter(today) && !finished()) {
+      await _createOccurrence(r, nextDate);
+      generatedCount++;
+      nextDate = _advance(
+        nextDate,
+        r.frequency,
+        r.dayOfMonth ?? r.startDate.day,
+      );
+    }
+
+    await (db.update(
+      db.recurrences,
+    )..where((tbl) => tbl.id.equals(r.id))).write(
+      RecurrencesCompanion(
+        nextOccurrenceDate: Value(nextDate),
+        generatedCount: Value(generatedCount),
+        status: Value(finished() ? 'finished' : 'active'),
+      ),
+    );
   }
 
   Future<void> _createOccurrence(RecurrenceRow r, DateTime date) async {
     await _transactions.createTransaction(
       Transaction(
         type: r.type,
-        amount: r.amount,
+        amountCents: r.amountCents,
         date: date,
         accountId: r.accountId,
         destinationAccountId: r.destinationAccountId,
@@ -176,36 +210,17 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
     );
   }
 
-  DateTime _advance(
-    DateTime current,
-    String frequency,
-    int? dayOfMonth,
-    int? weekday,
-  ) {
+  DateTime _advance(DateTime current, String frequency, int dayOfMonth) {
     switch (frequency) {
       case 'weekly':
-        return current.add(const Duration(days: 7));
+        return DateTime(current.year, current.month, current.day + 7);
 
       case 'yearly':
-        return DateTime(current.year + 1, current.month, current.day);
+        return dateWithClampedDay(current.year + 1, current.month, dayOfMonth);
 
       case 'monthly':
       default:
-        final targetMonth = current.month == 12 ? 1 : current.month + 1;
-        final targetYear = current.month == 12
-            ? current.year + 1
-            : current.year;
-        final day = dayOfMonth ?? current.day;
-        final lastDayOfTargetMonth = DateTime(
-          targetYear,
-          targetMonth + 1,
-          0,
-        ).day;
-        return DateTime(
-          targetYear,
-          targetMonth,
-          day > lastDayOfTargetMonth ? lastDayOfTargetMonth : day,
-        );
+        return dateWithClampedDay(current.year, current.month + 1, dayOfMonth);
     }
   }
 }

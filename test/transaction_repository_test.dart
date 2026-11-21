@@ -24,8 +24,8 @@ void main() {
       Account(
         name: 'Nubank',
         type: 'digital',
-        initialBalance: 100,
-        currentBalance: 100,
+        initialBalanceCents: 10000,
+        currentBalanceCents: 10000,
         createdAt: DateTime.now(),
       ),
     );
@@ -33,7 +33,7 @@ void main() {
     await transactionRepo.createTransaction(
       Transaction(
         type: 'income',
-        amount: 50,
+        amountCents: 5000,
         date: DateTime.now(),
         accountId: accountId,
         createdAt: DateTime.now(),
@@ -41,7 +41,7 @@ void main() {
     );
 
     final account = await accountRepo.getAccountById(accountId);
-    expect(account!.currentBalance, 150);
+    expect(account!.currentBalanceCents, 15000);
   });
 
   test('expense decreases account balance', () async {
@@ -49,8 +49,8 @@ void main() {
       Account(
         name: 'Nubank',
         type: 'digital',
-        initialBalance: 100,
-        currentBalance: 100,
+        initialBalanceCents: 10000,
+        currentBalanceCents: 10000,
         createdAt: DateTime.now(),
       ),
     );
@@ -58,7 +58,7 @@ void main() {
     await transactionRepo.createTransaction(
       Transaction(
         type: 'expense',
-        amount: 30,
+        amountCents: 3000,
         date: DateTime.now(),
         accountId: accountId,
         createdAt: DateTime.now(),
@@ -66,7 +66,7 @@ void main() {
     );
 
     final account = await accountRepo.getAccountById(accountId);
-    expect(account!.currentBalance, 70);
+    expect(account!.currentBalanceCents, 7000);
   });
 
   test('transfer moves balance between accounts', () async {
@@ -74,8 +74,8 @@ void main() {
       Account(
         name: 'Conta Principal',
         type: 'corrente',
-        initialBalance: 500,
-        currentBalance: 500,
+        initialBalanceCents: 50000,
+        currentBalanceCents: 50000,
         createdAt: DateTime.now(),
       ),
     );
@@ -84,8 +84,8 @@ void main() {
       Account(
         name: 'Investimentos',
         type: 'investimento',
-        initialBalance: 0,
-        currentBalance: 0,
+        initialBalanceCents: 0,
+        currentBalanceCents: 0,
         createdAt: DateTime.now(),
       ),
     );
@@ -93,7 +93,7 @@ void main() {
     await transactionRepo.createTransaction(
       Transaction(
         type: 'transfer',
-        amount: 100,
+        amountCents: 10000,
         date: DateTime.now(),
         accountId: originId,
         destinationAccountId: destinationId,
@@ -104,8 +104,8 @@ void main() {
     final origin = await accountRepo.getAccountById(originId);
     final destination = await accountRepo.getAccountById(destinationId);
 
-    expect(origin!.currentBalance, 400);
-    expect(destination!.currentBalance, 100);
+    expect(origin!.currentBalanceCents, 40000);
+    expect(destination!.currentBalanceCents, 10000);
   });
 
   test('deleting a transaction reverts its balance effect', () async {
@@ -113,8 +113,8 @@ void main() {
       Account(
         name: 'Nubank',
         type: 'digital',
-        initialBalance: 100,
-        currentBalance: 100,
+        initialBalanceCents: 10000,
+        currentBalanceCents: 10000,
         createdAt: DateTime.now(),
       ),
     );
@@ -122,7 +122,7 @@ void main() {
     final transactionId = await transactionRepo.createTransaction(
       Transaction(
         type: 'expense',
-        amount: 40,
+        amountCents: 4000,
         date: DateTime.now(),
         accountId: accountId,
         createdAt: DateTime.now(),
@@ -132,7 +132,7 @@ void main() {
     await transactionRepo.deleteTransaction(transactionId);
 
     final account = await accountRepo.getAccountById(accountId);
-    expect(account!.currentBalance, 100);
+    expect(account!.currentBalanceCents, 10000);
   });
 
   test(
@@ -143,22 +143,22 @@ void main() {
         Account(
           name: name,
           type: 'cash',
-          initialBalance: 100,
-          currentBalance: 100,
+          initialBalanceCents: 10000,
+          currentBalanceCents: 10000,
           createdAt: now,
         ),
       );
       final origin = await account('Origem');
       final destination = await account('Destino');
       final other = await account('Nova conta');
-      Future<List<double>> balances() async => [
+      Future<List<int>> balances() async => [
         for (final id in [origin, destination, other])
-          (await accountRepo.getAccountById(id))!.currentBalance,
+          (await accountRepo.getAccountById(id))!.currentBalanceCents,
       ];
       final id = await transactionRepo.createTransaction(
         Transaction(
           type: 'transfer',
-          amount: 40,
+          amountCents: 4000,
           date: now,
           accountId: origin,
           destinationAccountId: destination,
@@ -173,21 +173,21 @@ void main() {
         ),
         throwsStateError,
       );
-      expect(await balances(), [60, 140, 100]);
+      expect(await balances(), [6000, 14000, 10000]);
 
       final revisedDate = now.subtract(const Duration(days: 2));
       await transactionRepo.updateTransaction(
         Transaction(
           id: id,
           type: 'transfer',
-          amount: 25,
+          amountCents: 2500,
           date: revisedDate,
           accountId: other,
           destinationAccountId: origin,
           createdAt: now,
         ),
       );
-      expect(await balances(), [125, 100, 75]);
+      expect(await balances(), [12500, 10000, 7500]);
       final edited = (await transactionRepo.getTransactionById(id))!;
       expect(edited.description, isNull);
       expect(edited.date.day, revisedDate.day);
@@ -196,7 +196,7 @@ void main() {
         transactionRepo.deleteTransaction(id),
         transactionRepo.deleteTransaction(id),
       ]);
-      expect(await balances(), [100, 100, 100]);
+      expect(await balances(), [10000, 10000, 10000]);
       expect(await transactionRepo.watchAllTransactions().first, isEmpty);
       expect(
         (await transactionRepo.watchDeletedTransactions().first).single.id,
@@ -207,8 +207,49 @@ void main() {
         transactionRepo.restoreTransaction(id),
         transactionRepo.restoreTransaction(id),
       ]);
-      expect(await balances(), [125, 100, 75]);
+      expect(await balances(), [12500, 10000, 7500]);
       expect(await transactionRepo.watchDeletedTransactions().first, isEmpty);
+      final revisions = await transactionRepo.listRevisions(id);
+      expect(revisions.map((revision) => revision.action), [
+        'restore',
+        'delete',
+        'edit',
+      ]);
+      expect(revisions.last.previous.amountCents, 4000);
+      expect(revisions.last.previous.destinationAccountId, destination);
+      expect(revisions.last.previous.description, 'Texto antigo');
     },
   );
+
+  test('reuses exact centavos through editing and restoration', () async {
+    final now = DateTime.now();
+    final id = await accountRepo.createAccount(
+      Account(
+        name: 'Carteira',
+        type: 'cash',
+        initialBalanceCents: 0,
+        currentBalanceCents: 0,
+        createdAt: now,
+      ),
+    );
+    final amount = Transaction(
+      type: 'income',
+      amountCents: 10,
+      date: now,
+      accountId: id,
+      incomeSource: ' Cliente ',
+      createdAt: now,
+    );
+    final entryId = await transactionRepo.createTransaction(amount);
+    await transactionRepo.createTransaction(amount.copyWith(amountCents: 20));
+    expect((await accountRepo.getAccountById(id))!.currentBalanceCents, 30);
+    final entry = (await transactionRepo.getTransactionById(entryId))!;
+    expect(entry.incomeSource, 'Cliente');
+    await transactionRepo.updateTransaction(entry.copyWith(amountCents: 1));
+    await transactionRepo.deleteTransaction(entryId);
+    await transactionRepo.restoreTransaction(entryId);
+    expect((await accountRepo.getAccountById(id))!.currentBalanceCents, 21);
+    final revisions = await transactionRepo.listRevisions(entryId);
+    expect(revisions.last.previous.incomeSource, 'Cliente');
+  });
 }

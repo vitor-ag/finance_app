@@ -1,7 +1,12 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
+
+import '../../../../core/money.dart';
 
 import '../../../../data/local/database.dart';
 import '../../domain/entities/transaction.dart';
+import '../../domain/entities/transaction_revision.dart';
 import '../../domain/repositories/transaction_repository.dart';
 
 class TransactionRepositoryImpl implements TransactionRepository {
@@ -13,12 +18,13 @@ class TransactionRepositoryImpl implements TransactionRepository {
     return Transaction(
       id: row.id,
       type: row.type,
-      amount: row.amount,
+      amountCents: row.amountCents,
       date: row.date,
       accountId: row.accountId,
       destinationAccountId: row.destinationAccountId,
       categoryId: row.categoryId,
       description: row.description,
+      incomeSource: row.incomeSource,
       status: row.status,
       recurrenceId: row.recurrenceId,
       createdAt: row.createdAt,
@@ -59,6 +65,62 @@ class TransactionRepositoryImpl implements TransactionRepository {
   }
 
   @override
+  Future<List<TransactionRevision>> listRevisions(int id) async {
+    final rows =
+        await (db.select(db.transactionRevisions)
+              ..where((tbl) => tbl.transactionId.equals(id))
+              ..orderBy([(tbl) => OrderingTerm.desc(tbl.id)]))
+            .get();
+    return rows.map((row) {
+      final data = jsonDecode(row.snapshot) as Map<String, dynamic>;
+      return TransactionRevision(
+        row.action,
+        row.recordedAt,
+        Transaction(
+          id: row.transactionId,
+          type: data['type'] as String,
+          amountCents: data['amountCents'] as int,
+          date: DateTime.parse(data['date'] as String),
+          accountId: data['accountId'] as int,
+          destinationAccountId: data['destinationAccountId'] as int?,
+          categoryId: data['categoryId'] as int?,
+          description: data['description'] as String?,
+          incomeSource: data['incomeSource'] as String?,
+          status: data['status'] as String,
+          recurrenceId: data['recurrenceId'] as int?,
+          deletedAt: DateTime.tryParse(data['deletedAt'] as String? ?? ''),
+          createdAt: DateTime.parse(data['createdAt'] as String),
+        ),
+      );
+    }).toList();
+  }
+
+  Future<void> _recordRevision(String action, Transaction entry) async {
+    await db
+        .into(db.transactionRevisions)
+        .insert(
+          TransactionRevisionsCompanion.insert(
+            transactionId: entry.id!,
+            action: action,
+            snapshot: jsonEncode({
+              'type': entry.type,
+              'amountCents': entry.amountCents,
+              'date': entry.date.toIso8601String(),
+              'accountId': entry.accountId,
+              'destinationAccountId': entry.destinationAccountId,
+              'categoryId': entry.categoryId,
+              'description': entry.description,
+              'incomeSource': entry.incomeSource,
+              'status': entry.status,
+              'recurrenceId': entry.recurrenceId,
+              'createdAt': entry.createdAt.toIso8601String(),
+              'deletedAt': entry.deletedAt?.toIso8601String(),
+            }),
+          ),
+        );
+  }
+
+  @override
   Future<int> createTransaction(Transaction transaction) {
     // Runs insert + balance updates as a single atomic operation.
     return db.transaction(() async {
@@ -68,12 +130,13 @@ class TransactionRepositoryImpl implements TransactionRepository {
           .insert(
             TransactionsCompanion.insert(
               type: transaction.type,
-              amount: transaction.amount,
+              amountCents: transaction.amountCents,
               date: transaction.date,
               accountId: transaction.accountId,
               destinationAccountId: Value(transaction.destinationAccountId),
               categoryId: Value(transaction.categoryId),
               description: Value(transaction.description),
+              incomeSource: Value(_incomeSource(transaction)),
               status: Value(transaction.status),
               recurrenceId: Value(transaction.recurrenceId),
             ),
@@ -98,21 +161,22 @@ class TransactionRepositoryImpl implements TransactionRepository {
       await _ensureNotBillPayment(id);
       await _validate(transaction, previous: previous);
 
-      await _applyBalanceEffect(previous, reverse: true);
+      await _recordRevision('edit', previous);
       await (db.update(
         db.transactions,
       )..where((tbl) => tbl.id.equals(id))).write(
         TransactionsCompanion(
           type: Value(transaction.type),
-          amount: Value(transaction.amount),
+          amountCents: Value(transaction.amountCents),
           date: Value(transaction.date),
           accountId: Value(transaction.accountId),
           destinationAccountId: Value(transaction.destinationAccountId),
           categoryId: Value(transaction.categoryId),
           description: Value(transaction.description),
+          incomeSource: Value(_incomeSource(transaction)),
         ),
       );
-      await _applyBalanceEffect(transaction);
+      await _applyBalanceEffect(transaction, replacing: previous);
     });
   }
 
@@ -122,6 +186,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
       final entry = await getTransactionById(id);
       if (entry == null || entry.deletedAt != null) return;
       await _ensureNotBillPayment(id);
+      await _recordRevision('delete', entry);
       await _applyBalanceEffect(entry, reverse: true);
       await (db.update(db.transactions)..where((tbl) => tbl.id.equals(id)))
           .write(TransactionsCompanion(deletedAt: Value(DateTime.now())));
@@ -133,6 +198,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
     return db.transaction(() async {
       final entry = await getTransactionById(id);
       if (entry == null || entry.deletedAt == null) return;
+      await _recordRevision('restore', entry);
       await _applyBalanceEffect(entry);
       await (db.update(db.transactions)..where((tbl) => tbl.id.equals(id)))
           .write(const TransactionsCompanion(deletedAt: Value(null)));
@@ -156,9 +222,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
     Transaction transaction, {
     Transaction? previous,
   }) async {
-    if (!transaction.amount.isFinite || transaction.amount <= 0) {
-      throw StateError('Informe um valor maior que zero.');
-    }
+    validatePositiveCents(transaction.amountCents);
     if (!const {'income', 'expense', 'transfer'}.contains(transaction.type)) {
       throw StateError('Selecione um tipo de lançamento válido.');
     }
@@ -180,53 +244,53 @@ class TransactionRepositoryImpl implements TransactionRepository {
     }
   }
 
-  /// Applies (or reverses, when [reverse] is true) the balance impact
-  /// of a transaction on the account(s) involved.
+  String? _incomeSource(Transaction entry) {
+    final source = entry.incomeSource?.trim();
+    return entry.type == 'income' && source != null && source.isNotEmpty
+        ? source
+        : null;
+  }
+
   Future<void> _applyBalanceEffect(
     Transaction transaction, {
     bool reverse = false,
+    Transaction? replacing,
   }) async {
-    final sign = reverse ? -1 : 1;
+    final deltas = <int, int>{};
+    void addDelta(int id, int cents) {
+      deltas.update(id, (delta) => delta + cents, ifAbsent: () => cents);
+    }
 
-    switch (transaction.type) {
-      case 'income':
-        await _adjustAccountBalance(
-          transaction.accountId,
-          transaction.amount * sign,
-        );
-        break;
+    void addEntry(Transaction entry, int sign) {
+      final cents = entry.amountCents * sign;
+      switch (entry.type) {
+        case 'income':
+          addDelta(entry.accountId, cents);
+        case 'expense':
+          addDelta(entry.accountId, -cents);
+        case 'transfer':
+          addDelta(entry.accountId, -cents);
+          if (entry.destinationAccountId case final destination?) {
+            addDelta(destination, cents);
+          }
+      }
+    }
 
-      case 'expense':
-        await _adjustAccountBalance(
-          transaction.accountId,
-          -transaction.amount * sign,
-        );
-        break;
-
-      case 'transfer':
-        await _adjustAccountBalance(
-          transaction.accountId,
-          -transaction.amount * sign,
-        );
-        if (transaction.destinationAccountId != null) {
-          await _adjustAccountBalance(
-            transaction.destinationAccountId!,
-            transaction.amount * sign,
-          );
-        }
-        break;
+    if (replacing != null) addEntry(replacing, -1);
+    addEntry(transaction, reverse ? -1 : 1);
+    for (final delta in deltas.entries) {
+      if (delta.value != 0) await _adjustAccountBalance(delta.key, delta.value);
     }
   }
 
-  Future<void> _adjustAccountBalance(int accountId, double delta) async {
+  Future<void> _adjustAccountBalance(int accountId, int delta) async {
     final account = await (db.select(
       db.accounts,
     )..where((tbl) => tbl.id.equals(accountId))).getSingle();
 
-    await (db.update(
-      db.accounts,
-    )..where((tbl) => tbl.id.equals(accountId))).write(
-      AccountsCompanion(currentBalance: Value(account.currentBalance + delta)),
-    );
+    final balance = account.currentBalanceCents + delta;
+    validateBalanceCents(balance);
+    await (db.update(db.accounts)..where((tbl) => tbl.id.equals(accountId)))
+        .write(AccountsCompanion(currentBalanceCents: Value(balance)));
   }
 }

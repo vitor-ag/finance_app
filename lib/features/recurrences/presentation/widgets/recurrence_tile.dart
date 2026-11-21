@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../../../../core/money.dart';
 import '../../domain/entities/recurrence.dart';
 
 class RecurrenceTile extends StatelessWidget {
@@ -14,10 +16,6 @@ class RecurrenceTile extends StatelessWidget {
     this.onResume,
     this.onCancel,
   });
-
-  String _formatCurrency(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
-  }
 
   String _frequencyLabel(String frequency) {
     switch (frequency) {
@@ -35,8 +33,8 @@ class RecurrenceTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isIncome = recurrence.type == 'income';
-    final color = recurrence.status == 'cancelled' ||
-            recurrence.status == 'finished'
+    final color =
+        recurrence.status == 'cancelled' || recurrence.status == 'finished'
         ? theme.colorScheme.outline
         : (isIncome ? Colors.green : Colors.red);
 
@@ -49,8 +47,7 @@ class RecurrenceTile extends StatelessWidget {
         ),
       ),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: CircleAvatar(
           radius: 20,
           backgroundColor: color.withValues(alpha: 0.15),
@@ -83,7 +80,7 @@ class RecurrenceTile extends StatelessWidget {
               const PopupMenuItem(value: 'cancel', child: Text('Cancelar')),
           ],
           child: Text(
-            _formatCurrency(recurrence.amount),
+            formatBrl(recurrence.amountCents),
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
         ),

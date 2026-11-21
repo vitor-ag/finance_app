@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/money.dart';
 import '../../domain/entities/transaction.dart';
 
 class TransactionTile extends StatelessWidget {
@@ -17,10 +18,6 @@ class TransactionTile extends StatelessWidget {
     this.destinationAccountName,
     this.onTap,
   });
-
-  String _formatCurrency(double value) {
-    return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,6 +72,7 @@ class TransactionTile extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(subtitle),
+              if (transaction.incomeSource case final source?) Text(source),
               Text(
                 '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}',
               ),
@@ -85,7 +83,7 @@ class TransactionTile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '$sign${_formatCurrency(transaction.amount)}',
+              '$sign${formatBrl(transaction.amountCents)}',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 15,

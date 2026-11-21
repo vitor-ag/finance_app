@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/money.dart';
+import '../../../../core/widgets/record_actions.dart';
 import '../../../accounts/domain/entities/account.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
 import '../../../categories/presentation/providers/category_providers.dart';
@@ -10,14 +13,21 @@ import '../widgets/bill_tile.dart';
 class BillsScreen extends ConsumerWidget {
   const BillsScreen({super.key});
 
-  void _showAddBillDialog(BuildContext context, WidgetRef ref) {
-    final nameController = TextEditingController();
-    final amountController = TextEditingController();
-    String selectedBillType = 'fixed';
-    int? selectedCategoryId;
-    DateTime selectedDate = DateTime.now().add(const Duration(days: 7));
+  Future<void> _showBillForm(
+    BuildContext context,
+    WidgetRef ref, {
+    Bill? bill,
+  }) async {
+    final repo = ref.read(billRepositoryProvider);
+    var nameInput = bill?.name ?? '';
+    var amountInput = bill == null ? '' : brlInput(bill.amountCents);
+    String selectedBillType = bill?.billType ?? 'fixed';
+    int? selectedCategoryId = bill?.categoryId;
+    DateTime selectedDate =
+        bill?.dueDate ?? DateTime.now().add(const Duration(days: 7));
+    var saving = false;
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -27,7 +37,7 @@ class BillsScreen extends ConsumerWidget {
         builder: (context, ref, _) {
           final categories =
               ref.watch(allCategoriesProvider(type: 'expense')).valueOrNull ??
-                  [];
+              [];
 
           return StatefulBuilder(
             builder: (context, setState) {
@@ -44,26 +54,28 @@ class BillsScreen extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Nova Conta a Pagar',
-                        style:
-                            Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
+                        bill == null
+                            ? 'Nova Conta a Pagar'
+                            : 'Editar Conta a Pagar',
+                        style: Theme.of(context).textTheme.titleLarge
+                            ?.copyWith(fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 16),
-                      TextField(
-                        controller: nameController,
+                      TextFormField(
+                        initialValue: nameInput,
+                        onChanged: (value) => nameInput = value,
                         decoration: const InputDecoration(
                           labelText: 'Nome (ex: Aluguel, Internet)',
                           border: OutlineInputBorder(),
                         ),
                       ),
                       const SizedBox(height: 12),
-                      TextField(
-                        controller: amountController,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
-                                decimal: true),
+                      TextFormField(
+                        initialValue: amountInput,
+                        onChanged: (value) => amountInput = value,
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
                         decoration: const InputDecoration(
                           labelText: 'Valor (R\$)',
                           border: OutlineInputBorder(),
@@ -74,28 +86,44 @@ class BillsScreen extends ConsumerWidget {
                         segments: const [
                           ButtonSegment(value: 'fixed', label: Text('Fixa')),
                           ButtonSegment(
-                              value: 'recurring', label: Text('Recorrente')),
+                            value: 'recurring',
+                            label: Text('Recorrente'),
+                          ),
                           ButtonSegment(
-                              value: 'eventual', label: Text('Eventual')),
+                            value: 'eventual',
+                            label: Text('Eventual'),
+                          ),
                         ],
                         selected: {selectedBillType},
-                        onSelectionChanged: (selection) =>
-                            setState(() => selectedBillType = selection.first),
+                        onSelectionChanged: bill?.billType == 'recurring'
+                            ? null
+                            : (selection) => setState(
+                                () => selectedBillType = selection.first,
+                              ),
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
-                        initialValue: selectedCategoryId,
+                        initialValue:
+                            categories.any(
+                              (item) => item.id == selectedCategoryId,
+                            )
+                            ? selectedCategoryId
+                            : null,
                         decoration: const InputDecoration(
                           labelText: 'Categoria',
                           border: OutlineInputBorder(),
                         ),
-                        items: categories
-                            .where((category) => category.isActive)
-                            .map((c) => DropdownMenuItem(
-                                  value: c.id,
-                                  child: Text(c.name),
-                                ))
-                            .toList(),
+                        hint: const Text('Sem categoria'),
+                        items: [
+                          const DropdownMenuItem(child: Text('Sem categoria')),
+                          for (final category in categories)
+                            if (category.isActive ||
+                                category.id == bill?.categoryId)
+                              DropdownMenuItem(
+                                value: category.id,
+                                child: Text(category.name),
+                              ),
+                        ],
                         onChanged: (val) =>
                             setState(() => selectedCategoryId = val),
                       ),
@@ -111,10 +139,8 @@ class BillsScreen extends ConsumerWidget {
                           final picked = await showDatePicker(
                             context: context,
                             initialDate: selectedDate,
-                            firstDate: DateTime.now()
-                                .subtract(const Duration(days: 365)),
-                            lastDate:
-                                DateTime.now().add(const Duration(days: 365 * 3)),
+                            firstDate: DateTime(selectedDate.year - 1),
+                            lastDate: DateTime(selectedDate.year + 4),
                           );
                           if (picked != null) {
                             setState(() => selectedDate = picked);
@@ -126,31 +152,58 @@ class BillsScreen extends ConsumerWidget {
                         width: double.infinity,
                         height: 48,
                         child: FilledButton(
-                          onPressed: () async {
-                            final amount = double.tryParse(
-                                  amountController.text
-                                      .replaceAll(',', '.'),
-                                ) ??
-                                0.0;
-                            final name = nameController.text.trim();
+                          onPressed: saving
+                              ? null
+                              : () async {
+                                  final amountCents = parseBrlCents(
+                                    amountInput,
+                                  );
+                                  final name = nameInput.trim();
 
-                            if (name.isEmpty || amount <= 0) return;
+                                  if (name.isEmpty ||
+                                      name.length > 80 ||
+                                      amountCents == null ||
+                                      amountCents <= 0) {
+                                    showRecordError(
+                                      context,
+                                      StateError(
+                                        'Informe um nome e um valor válido.',
+                                      ),
+                                      '',
+                                    );
+                                    return;
+                                  }
+                                  setState(() => saving = true);
 
-                            final newBill = Bill(
-                              name: name,
-                              categoryId: selectedCategoryId,
-                              amount: amount,
-                              dueDate: selectedDate,
-                              billType: selectedBillType,
-                              createdAt: DateTime.now(),
-                            );
+                                  final newBill = Bill(
+                                    id: bill?.id,
+                                    name: name,
+                                    categoryId: selectedCategoryId,
+                                    amountCents: amountCents,
+                                    dueDate: selectedDate,
+                                    billType: selectedBillType,
+                                    notes: bill?.notes,
+                                    createdAt:
+                                        bill?.createdAt ?? DateTime.now(),
+                                  );
 
-                            await ref
-                                .read(billRepositoryProvider)
-                                .createBill(newBill);
-
-                            if (context.mounted) Navigator.pop(context);
-                          },
+                                  try {
+                                    if (bill == null) {
+                                      await repo.createBill(newBill);
+                                    } else {
+                                      await repo.updateBill(newBill);
+                                    }
+                                    if (context.mounted) Navigator.pop(context);
+                                  } catch (error) {
+                                    if (!context.mounted) return;
+                                    setState(() => saving = false);
+                                    showRecordError(
+                                      context,
+                                      error,
+                                      'Não foi possível salvar a conta.',
+                                    );
+                                  }
+                                },
                           child: const Text('Salvar Conta'),
                         ),
                       ),
@@ -163,6 +216,33 @@ class BillsScreen extends ConsumerWidget {
         },
       ),
     );
+  }
+
+  Future<void> _confirmBillAction(
+    BuildContext context,
+    WidgetRef ref,
+    Bill bill, {
+    required bool stopRepeat,
+  }) async {
+    final repo = ref.read(billRepositoryProvider);
+    final confirmed = await confirmRecordAction(
+      context,
+      title: stopRepeat ? 'Parar repetição mensal?' : 'Cancelar esta conta?',
+      message: stopRepeat ? 'As contas já geradas permanecem na lista.' : 'A conta fica no histórico como cancelada. Uma eventual série mensal continua ativa.',
+      action: stopRepeat ? 'Parar repetição' : 'Cancelar conta',
+    );
+    if (!confirmed || !context.mounted) return;
+    try {
+      if (stopRepeat) {
+        await repo.stopRepeating(bill.id!);
+      } else {
+        await repo.cancelBill(bill.id!);
+      }
+    } catch (error) {
+      if (context.mounted) {
+        showRecordError(context, error, 'Não foi possível atualizar a conta.');
+      }
+    }
   }
 
   void _showMarkAsPaidDialog(
@@ -186,10 +266,9 @@ class BillsScreen extends ConsumerWidget {
                 border: OutlineInputBorder(),
               ),
               items: accounts
-                  .map((a) => DropdownMenuItem(
-                        value: a.id,
-                        child: Text(a.name),
-                      ))
+                  .map(
+                    (a) => DropdownMenuItem(value: a.id, child: Text(a.name)),
+                  )
                   .toList(),
               onChanged: (val) => setState(() => selectedAccountId = val),
             ),
@@ -202,7 +281,9 @@ class BillsScreen extends ConsumerWidget {
                 onPressed: selectedAccountId == null
                     ? null
                     : () async {
-                        await ref.read(billRepositoryProvider).markAsPaid(
+                        await ref
+                            .read(billRepositoryProvider)
+                            .markAsPaid(
                               bill.id!,
                               paymentAccountId: selectedAccountId!,
                             );
@@ -220,7 +301,9 @@ class BillsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final billsAsync = ref.watch(allBillsProvider);
-    final accounts = ref.watch(allAccountsProvider).valueOrNull
+    final accounts = ref
+        .watch(allAccountsProvider)
+        .valueOrNull
         ?.where((account) => account.isActive)
         .toList();
     final expenseCategories =
@@ -268,7 +351,27 @@ class BillsScreen extends ConsumerWidget {
                   categoryName: categoryName(bill.categoryId),
                   onMarkAsPaid: accounts == null
                       ? null
-                      : () => _showMarkAsPaidDialog(context, ref, bill, accounts),
+                      : () =>
+                            _showMarkAsPaidDialog(context, ref, bill, accounts),
+                  onEdit: bill.status == 'pending'
+                      ? () => _showBillForm(context, ref, bill: bill)
+                      : null,
+                  onCancel: bill.status == 'pending'
+                      ? () => _confirmBillAction(
+                          context,
+                          ref,
+                          bill,
+                          stopRepeat: false,
+                        )
+                      : null,
+                  onStopRepeat: bill.repeatDay != null
+                      ? () => _confirmBillAction(
+                          context,
+                          ref,
+                          bill,
+                          stopRepeat: true,
+                        )
+                      : null,
                 ),
               );
             },
@@ -276,7 +379,7 @@ class BillsScreen extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddBillDialog(context, ref),
+        onPressed: () => _showBillForm(context, ref),
         icon: const Icon(Icons.add),
         label: const Text('Nova Conta'),
       ),

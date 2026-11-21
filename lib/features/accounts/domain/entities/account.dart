@@ -4,8 +4,8 @@ class Account {
   final int? id;
   final String name;
   final String type;
-  final double initialBalance;
-  final double currentBalance;
+  final int initialBalanceCents;
+  final int currentBalanceCents;
   final String? color;
   final String? icon;
   final bool isActive;
@@ -16,8 +16,8 @@ class Account {
     this.id,
     required this.name,
     required this.type,
-    required this.initialBalance,
-    required this.currentBalance,
+    required this.initialBalanceCents,
+    required this.currentBalanceCents,
     this.color,
     this.icon,
     this.isActive = true,
@@ -29,8 +29,8 @@ class Account {
     int? id,
     String? name,
     String? type,
-    double? initialBalance,
-    double? currentBalance,
+    int? initialBalanceCents,
+    int? currentBalanceCents,
     String? color,
     String? icon,
     bool? isActive,
@@ -41,8 +41,8 @@ class Account {
       id: id ?? this.id,
       name: name ?? this.name,
       type: type ?? this.type,
-      initialBalance: initialBalance ?? this.initialBalance,
-      currentBalance: currentBalance ?? this.currentBalance,
+      initialBalanceCents: initialBalanceCents ?? this.initialBalanceCents,
+      currentBalanceCents: currentBalanceCents ?? this.currentBalanceCents,
       color: color ?? this.color,
       icon: icon ?? this.icon,
       isActive: isActive ?? this.isActive,

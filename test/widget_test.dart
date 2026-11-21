@@ -132,8 +132,8 @@ void main() {
       Account(
         name: 'Nubank',
         type: 'digital',
-        initialBalance: 100,
-        currentBalance: 100,
+        initialBalanceCents: 10000,
+        currentBalanceCents: 10000,
         createdAt: DateTime.now(),
       ),
     );
@@ -225,6 +225,10 @@ void main() {
     await selectAction('Editar');
     await tester.enterText(find.widgetWithText(TextField, 'Valor (R\$)'), '25');
     await saveForm();
+    await selectAction('Histórico de alterações');
+    expect(find.textContaining('Saída · R\$ 20,00'), findsOneWidget);
+    await tester.tapAt(const Offset(20, 20));
+    await tester.pumpAndSettle();
     await selectAction('Duplicar');
     await saveForm();
     expect(find.text('-R\$ 25,00'), findsNWidgets(2));
@@ -233,7 +237,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Mover para a lixeira'));
     await tester.pumpAndSettle();
     expect(find.text('-R\$ 25,00'), findsOneWidget);
-    expect((await db.select(db.accounts).getSingle()).currentBalance, -25);
+    expect((await db.select(db.accounts).getSingle()).currentBalanceCents, -2500);
 
     await tester.tap(find.byTooltip('Abrir lixeira'));
     await tester.pumpAndSettle();
@@ -242,7 +246,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Restaurar'));
     await tester.pumpAndSettle();
     expect(find.text('Lixeira vazia'), findsOneWidget);
-    expect((await db.select(db.accounts).getSingle()).currentBalance, -50);
+    expect((await db.select(db.accounts).getSingle()).currentBalanceCents, -5000);
     await closeTestDatabase(tester, db);
   });
 
@@ -255,8 +259,8 @@ void main() {
       Account(
         name: 'Nubank',
         type: 'digital',
-        initialBalance: 300,
-        currentBalance: 300,
+        initialBalanceCents: 30000,
+        currentBalanceCents: 30000,
         createdAt: DateTime.now(),
       ),
     );
@@ -327,9 +331,47 @@ void main() {
     expect(find.text('Paga'), findsOneWidget);
 
     final account = await accountRepo.getAccountById(1);
-    expect(account!.currentBalance, 180);
+    expect(account!.currentBalanceCents, 18000);
 
     await testDb.close();
+  });
+
+  testWidgets('BillsScreen can edit and cancel a pending bill', (tester) async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    await db.into(db.bills).insert(BillsCompanion.insert(
+      name: 'Internet',
+      amountCents: 5999,
+      dueDate: DateTime.now().add(const Duration(days: 7)),
+      billType: 'fixed',
+    ));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [databaseProvider.overrideWithValue(db)],
+      child: const MyApp(),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('A Pagar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Ações da conta a pagar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Editar conta'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Valor (R\$)'), '60,01');
+    final save = find.text('Salvar Conta');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.text('R\$ 60,01'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Ações da conta a pagar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancelar conta'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Cancelar conta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cancelada'), findsOneWidget);
+    expect(await db.select(db.transactions).get(), isEmpty);
+    await closeTestDatabase(tester, db);
   });
 
   testWidgets('RecurrencesScreen can create a recurrence and generate the first occurrence immediately',
@@ -341,8 +383,8 @@ void main() {
       Account(
         name: 'Nubank',
         type: 'digital',
-        initialBalance: 0,
-        currentBalance: 0,
+        initialBalanceCents: 0,
+        currentBalanceCents: 0,
         createdAt: DateTime.now(),
       ),
     );
@@ -398,7 +440,7 @@ void main() {
     expect(find.text('Salário'), findsOneWidget);
 
     final account = await accountRepo.getAccountById(1);
-    expect(account!.currentBalance, 1000);
+    expect(account!.currentBalanceCents, 100000);
 
     // Confirm the generated transaction also shows up in Lançamentos.
     await tester.tap(find.text('Lançamentos'));
