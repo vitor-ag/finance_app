@@ -24,6 +24,43 @@ Future<void> openMorePage(WidgetTester tester, String page) async {
 }
 
 void main() {
+  testWidgets('Metas supports creating a goal and updating its progress', (tester) async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    await tester.pumpWidget(ProviderScope(
+      overrides: [databaseProvider.overrideWithValue(db)],
+      child: const MyApp(),
+    ));
+    await tester.pumpAndSettle();
+    await openMorePage(tester, 'Metas financeiras');
+    expect(find.text('Nenhuma meta cadastrada.'), findsOneWidget);
+
+    await tester.tap(find.text('Nova meta'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Nome da meta'), 'Viagem');
+    await tester.enterText(find.widgetWithText(TextField, 'Valor-alvo (R\$)'), '200,00');
+    await tester.enterText(find.widgetWithText(TextField, 'Já reservado (R\$)'), '50,00');
+    await tester.ensureVisible(find.text('Prazo'));
+    await tester.tap(find.text('Prazo'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Confirmar prazo'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Salvar meta'));
+    await tester.tap(find.text('Salvar meta'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('R\$ 50,00 de R\$ 200,00'), findsOneWidget);
+    await tester.tap(find.text('Viagem'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Adicionar à reserva'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Valor (R\$)'), '150,00');
+    await tester.tap(find.text('Adicionar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Meta atingida'), findsOneWidget);
+    expect(find.text('R\$ 200,00 de R\$ 200,00'), findsOneWidget);
+    await closeTestDatabase(tester, db);
+  });
+
   testWidgets('Início shows monthly totals and refreshes after a quick entry', (tester) async {
     tester.view.physicalSize = const Size(360, 760);
     tester.view.devicePixelRatio = 1;

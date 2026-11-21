@@ -6,6 +6,7 @@ import 'features/bills/presentation/providers/bill_providers.dart';
 import 'features/bills/presentation/screens/bills_screen.dart';
 import 'features/categories/presentation/screens/categories_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'features/goals/presentation/screens/goals_screen.dart';
 import 'features/recurrences/presentation/providers/recurrence_providers.dart';
 import 'features/recurrences/presentation/screens/recurrences_screen.dart';
 import 'features/transactions/presentation/screens/transactions_screen.dart';
@@ -152,6 +153,12 @@ class _MoreScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 12),
         children: [
+          ListTile(
+            leading: const Icon(Icons.flag_outlined),
+            title: const Text('Metas financeiras'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => onOpenPage(const GoalsScreen()),
+          ),
           ListTile(
             leading: const Icon(Icons.receipt_long_outlined),
             title: const Text('Contas a pagar'),

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:drift/drift.dart' show DatabaseSchemaEntity, Value;
 import 'package:drift/native.dart';
 import 'package:finance_app/data/local/database.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,7 +41,7 @@ void main() {
     final version = await reopenedDb
         .customSelect('PRAGMA user_version')
         .getSingle();
-    expect(version.read<int>('user_version'), 3);
+    expect(version.read<int>('user_version'), 4);
     expect(
       (await reopenedDb.select(reopenedDb.accounts).getSingle())
           .currentBalanceCents,
@@ -82,6 +83,84 @@ void main() {
       );
     },
   );
+
+  test('adds goals on upgrade from version 3 without modifying balances or entries', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'finance_goals_migration_',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/finance_app.sqlite');
+
+    final previous = _VersionThreeDatabase(NativeDatabase(file));
+    late int accountId;
+    try {
+      accountId = await previous
+          .into(previous.accounts)
+          .insert(
+            AccountsCompanion.insert(
+              name: 'Reserva',
+              type: 'savings',
+              initialBalanceCents: const Value(12345),
+              currentBalanceCents: const Value(17346),
+            ),
+          );
+      expect(
+        await previous
+            .customSelect(
+              "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'goals'",
+            )
+            .get(),
+        isEmpty,
+      );
+      await previous
+          .into(previous.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              type: 'income',
+              amountCents: 5001,
+              date: DateTime(2026, 11, 20),
+              accountId: accountId,
+            ),
+          );
+    } finally {
+      await previous.close();
+    }
+
+    final db = AppDatabase.forTesting(NativeDatabase(file));
+    addTearDown(db.close);
+    expect(await db.select(db.goals).get(), isEmpty);
+    await db
+        .into(db.goals)
+        .insert(
+          GoalsCompanion.insert(
+            name: 'Viagem',
+            targetCents: 40000,
+            dueDate: DateTime(2027, 5, 10),
+            accountId: Value(accountId),
+          ),
+        );
+    final goal = await db.select(db.goals).getSingle();
+    expect(goal.accountId, accountId);
+    expect(goal.savedCents, 0);
+    expect(
+      (await db.select(db.accounts).getSingle()).currentBalanceCents,
+      17346,
+    );
+    expect((await db.select(db.transactions).getSingle()).amountCents, 5001);
+    expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+  });
+}
+
+// The previous schema already used cents. Version 4 adds only the goals table.
+class _VersionThreeDatabase extends AppDatabase {
+  _VersionThreeDatabase(super.executor) : super.forTesting();
+
+  @override
+  int get schemaVersion => 3;
+
+  @override
+  List<DatabaseSchemaEntity> get allSchemaEntities =>
+      super.allSchemaEntities.where((entity) => entity != goals).toList();
 }
 
 // Frozen schema from before bills and recurrences were registered in Drift.

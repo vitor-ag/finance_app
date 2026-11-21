@@ -9,6 +9,7 @@ import '../../core/money.dart';
 import 'tables/accounts_table.dart';
 import 'tables/bills_table.dart';
 import 'tables/categories_table.dart';
+import 'tables/goals_table.dart';
 import 'tables/recurrences_table.dart';
 import 'tables/transaction_revisions_table.dart';
 import 'tables/transactions_table.dart';
@@ -23,6 +24,7 @@ part 'database.g.dart';
     Transactions,
     Bills,
     TransactionRevisions,
+    Goals,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -31,7 +33,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -71,10 +73,13 @@ class AppDatabase extends _$AppDatabase {
               ],
             );
             await migrator.createTable(transactionRevisions);
+            await migrator.createTable(goals);
           });
         } finally {
           if (foreignKeys) await customStatement('PRAGMA foreign_keys = ON');
         }
+      } else if (from < 4) {
+        await migrator.createTable(goals);
       }
     },
   );
