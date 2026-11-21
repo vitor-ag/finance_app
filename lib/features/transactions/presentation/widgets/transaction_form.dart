@@ -86,6 +86,7 @@ class _TransactionFormState extends ConsumerState<TransactionForm> {
       categoryId: _type == 'transfer' ? null : _categoryId,
       description: _description,
       incomeSource: _type == 'income' ? _incomeSource : null,
+      status: _editing?.status ?? 'paid',
       createdAt: _editing?.createdAt ?? DateTime.now(),
     );
     try {

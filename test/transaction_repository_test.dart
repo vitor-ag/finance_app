@@ -19,6 +19,44 @@ void main() {
 
   tearDown(() async => db.close());
 
+  test('pending entries affect balance only when paid', () async {
+    final now = DateTime.now();
+    final accountId = await accountRepo.createAccount(
+      Account(
+        name: 'Carteira',
+        type: 'cash',
+        initialBalanceCents: 0,
+        currentBalanceCents: 0,
+        createdAt: now,
+      ),
+    );
+    final id = await transactionRepo.createTransaction(
+      Transaction(
+        type: 'expense',
+        amountCents: 5000,
+        date: now,
+        accountId: accountId,
+        createdAt: now,
+        status: 'pending',
+      ),
+    );
+    expect(
+      (await accountRepo.getAccountById(accountId))!.currentBalanceCents,
+      0,
+    );
+    final entry = (await transactionRepo.getTransactionById(id))!;
+    await transactionRepo.updateTransaction(entry.copyWith(status: 'paid'));
+    expect(
+      (await accountRepo.getAccountById(accountId))!.currentBalanceCents,
+      -5000,
+    );
+    await transactionRepo.deleteTransaction(id);
+    expect(
+      (await accountRepo.getAccountById(accountId))!.currentBalanceCents,
+      0,
+    );
+  });
+
   test('income increases account balance', () async {
     final accountId = await accountRepo.createAccount(
       Account(

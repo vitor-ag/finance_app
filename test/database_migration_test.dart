@@ -43,7 +43,7 @@ void main() {
     final version = await reopenedDb
         .customSelect('PRAGMA user_version')
         .getSingle();
-    expect(version.read<int>('user_version'), 5);
+    expect(version.read<int>('user_version'), 6);
     expect(
       (await reopenedDb.select(reopenedDb.accounts).getSingle())
           .currentBalanceCents,

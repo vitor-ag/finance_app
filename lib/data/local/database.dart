@@ -35,10 +35,13 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    beforeOpen: (_) async {
+      await customStatement('PRAGMA foreign_keys = ON');
+    },
     onUpgrade: (migrator, from, to) async {
       if (from < 3) {
         final foreignKeys = (await customSelect(
@@ -82,6 +85,20 @@ class AppDatabase extends _$AppDatabase {
         }
       } else {
         await transaction(() => _createNewTables(migrator, from));
+      }
+      if (from < 6) {
+        await customStatement('''
+          UPDATE accounts SET current_balance_cents = current_balance_cents
+            - COALESCE((SELECT SUM(CASE type
+                WHEN 'income' THEN amount_cents
+                WHEN 'expense' THEN -amount_cents
+                WHEN 'transfer' THEN -amount_cents ELSE 0 END)
+              FROM transactions WHERE account_id = accounts.id
+                AND status != 'paid' AND deleted_at IS NULL), 0)
+            - COALESCE((SELECT SUM(amount_cents) FROM transactions
+              WHERE destination_account_id = accounts.id AND type = 'transfer'
+                AND status != 'paid' AND deleted_at IS NULL), 0)
+        ''');
       }
     },
   );

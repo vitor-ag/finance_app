@@ -189,6 +189,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
           categoryId: Value(transaction.categoryId),
           description: Value(transaction.description),
           incomeSource: Value(_incomeSource(transaction)),
+          status: Value(transaction.status),
         ),
       );
       await _applyBalanceEffect(transaction, replacing: previous);
@@ -241,6 +242,19 @@ class TransactionRepositoryImpl implements TransactionRepository {
     if (!const {'income', 'expense', 'transfer'}.contains(transaction.type)) {
       throw StateError('Selecione um tipo de lançamento válido.');
     }
+    if (!const {'pending', 'paid', 'cancelled'}.contains(transaction.status)) {
+      throw StateError('Selecione um status válido.');
+    }
+    if (transaction.categoryId case final categoryId?) {
+      final category = await (db.select(
+        db.categories,
+      )..where((row) => row.id.equals(categoryId))).getSingleOrNull();
+      if (category == null ||
+          category.type != transaction.type ||
+          (!category.isActive && categoryId != previous?.categoryId)) {
+        throw StateError('Selecione uma categoria válida.');
+      }
+    }
     final destination = transaction.destinationAccountId;
     if (transaction.type == 'transfer' &&
         (destination == null || destination == transaction.accountId)) {
@@ -277,6 +291,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
     }
 
     void addEntry(Transaction entry, int sign) {
+      if (entry.status != 'paid') return;
       final cents = entry.amountCents * sign;
       switch (entry.type) {
         case 'income':
