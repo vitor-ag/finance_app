@@ -7,6 +7,8 @@ import 'features/bills/presentation/screens/bills_screen.dart';
 import 'features/categories/presentation/screens/categories_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'features/goals/presentation/screens/goals_screen.dart';
+import 'features/notifications/presentation/providers/reminder_providers.dart';
+import 'features/notifications/presentation/screens/reminder_settings_screen.dart';
 import 'features/recurrences/presentation/providers/recurrence_providers.dart';
 import 'features/recurrences/presentation/screens/recurrences_screen.dart';
 import 'features/transactions/presentation/screens/transactions_screen.dart';
@@ -35,6 +37,7 @@ class _MyAppState extends ConsumerState<MyApp> {
 
   Future<void> _syncSchedules() async {
     if (!mounted) return;
+    ref.invalidate(billReminderSyncProvider);
     try {
       await Future.wait([
         ref.read(recurrenceRepositoryProvider).generateDueOccurrences(),
@@ -61,6 +64,7 @@ class _MyAppState extends ConsumerState<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(billReminderSyncProvider);
     return MaterialApp(
       title: 'Finance App',
       debugShowCheckedModeBanner: false,
@@ -170,6 +174,12 @@ class _MoreScreen extends StatelessWidget {
             title: const Text('Recorrências'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => onOpenPage(const RecurrencesScreen()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.notifications_outlined),
+            title: const Text('Notificações'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => onOpenPage(const ReminderSettingsScreen()),
           ),
           ListTile(
             leading: const Icon(Icons.category_outlined),

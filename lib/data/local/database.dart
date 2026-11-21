@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../core/money.dart';
 import 'tables/accounts_table.dart';
+import 'tables/bill_reminder_settings_table.dart';
 import 'tables/bills_table.dart';
 import 'tables/categories_table.dart';
 import 'tables/goals_table.dart';
@@ -25,6 +26,7 @@ part 'database.g.dart';
     Bills,
     TransactionRevisions,
     Goals,
+    BillReminderSettings,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -33,7 +35,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -73,16 +75,21 @@ class AppDatabase extends _$AppDatabase {
               ],
             );
             await migrator.createTable(transactionRevisions);
-            await migrator.createTable(goals);
+            await _createNewTables(migrator, from);
           });
         } finally {
           if (foreignKeys) await customStatement('PRAGMA foreign_keys = ON');
         }
-      } else if (from < 4) {
-        await migrator.createTable(goals);
+      } else {
+        await transaction(() => _createNewTables(migrator, from));
       }
     },
   );
+
+  Future<void> _createNewTables(Migrator migrator, int from) async {
+    if (from < 4) await migrator.createTable(goals);
+    if (from < 5) await migrator.createTable(billReminderSettings);
+  }
 
   Future<void> _migrateMoney(
     Migrator migrator,

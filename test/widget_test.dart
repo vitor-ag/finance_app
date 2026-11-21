@@ -3,12 +3,16 @@ import 'package:finance_app/core/providers/database_provider.dart';
 import 'package:finance_app/data/local/database.dart';
 import 'package:finance_app/features/accounts/data/repositories/account_repository_impl.dart';
 import 'package:finance_app/features/accounts/domain/entities/account.dart';
+import 'package:finance_app/features/bills/data/repositories/bill_repository_impl.dart';
+import 'package:finance_app/features/notifications/presentation/providers/reminder_providers.dart';
 import 'package:finance_app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:finance_app/features/categories/data/repositories/category_repository_impl.dart';
 import 'package:finance_app/features/categories/domain/entities/category.dart';
+
+import 'support/fake_reminder_notifications.dart';
 
 Future<void> closeTestDatabase(WidgetTester tester, AppDatabase db) async {
   await tester.pumpWidget(const SizedBox.shrink());
@@ -24,6 +28,44 @@ Future<void> openMorePage(WidgetTester tester, String page) async {
 }
 
 void main() {
+  testWidgets('Notificações saves the preferences, schedules a bill and sends a test', (tester) async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final gateway = FakeReminderNotifications()..allowed = false;
+    final now = DateTime.now();
+    final due = DateTime(now.year, now.month, now.day + 3);
+    final billId = await db.into(db.bills).insert(BillsCompanion.insert(
+      name: 'Internet',
+      amountCents: 10000,
+      dueDate: due,
+      billType: 'fixed',
+    ));
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        reminderNotificationsProvider.overrideWithValue(gateway),
+      ],
+      child: const MyApp(),
+    ));
+    await tester.pumpAndSettle();
+    await openMorePage(tester, 'Notificações');
+    expect(gateway.scheduled, isEmpty);
+    await tester.tap(find.text('Lembretes de vencimento'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Salvar preferências'));
+    await tester.pumpAndSettle();
+    expect(gateway.permissionRequests, 1);
+    expect(gateway.scheduledTimes.values.single, DateTime(due.year, due.month, due.day - 1, 9));
+    expect((await db.select(db.billReminderSettings).getSingle()).enabled, isTrue);
+
+    await tester.tap(find.text('Enviar notificação de teste'));
+    await tester.pumpAndSettle();
+    expect(gateway.testNotifications, 1);
+    await BillRepositoryImpl(db).cancelBill(billId);
+    await tester.pumpAndSettle();
+    expect(gateway.scheduled, isEmpty);
+    await closeTestDatabase(tester, db);
+  });
+
   testWidgets('Metas supports creating a goal and updating its progress', (tester) async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     await tester.pumpWidget(ProviderScope(

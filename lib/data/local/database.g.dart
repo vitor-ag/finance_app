@@ -3722,6 +3722,320 @@ class GoalsCompanion extends UpdateCompanion<GoalRow> {
   }
 }
 
+class $BillReminderSettingsTable extends BillReminderSettings
+    with TableInfo<$BillReminderSettingsTable, BillReminderSettingsRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BillReminderSettingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _enabledMeta =
+      const VerificationMeta('enabled');
+  @override
+  late final GeneratedColumn<bool> enabled = GeneratedColumn<bool>(
+      'enabled', aliasedName, false,
+      type: DriftSqlType.bool,
+      requiredDuringInsert: true,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('CHECK ("enabled" IN (0, 1))'));
+  static const VerificationMeta _daysBeforeMeta =
+      const VerificationMeta('daysBefore');
+  @override
+  late final GeneratedColumn<int> daysBefore = GeneratedColumn<int>(
+      'days_before', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _minuteOfDayMeta =
+      const VerificationMeta('minuteOfDay');
+  @override
+  late final GeneratedColumn<int> minuteOfDay = GeneratedColumn<int>(
+      'minute_of_day', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _configuredAtMeta =
+      const VerificationMeta('configuredAt');
+  @override
+  late final GeneratedColumn<DateTime> configuredAt = GeneratedColumn<DateTime>(
+      'configured_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns =>
+      [id, enabled, daysBefore, minuteOfDay, configuredAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'bill_reminder_settings';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<BillReminderSettingsRow> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('enabled')) {
+      context.handle(_enabledMeta,
+          enabled.isAcceptableOrUnknown(data['enabled']!, _enabledMeta));
+    } else if (isInserting) {
+      context.missing(_enabledMeta);
+    }
+    if (data.containsKey('days_before')) {
+      context.handle(
+          _daysBeforeMeta,
+          daysBefore.isAcceptableOrUnknown(
+              data['days_before']!, _daysBeforeMeta));
+    } else if (isInserting) {
+      context.missing(_daysBeforeMeta);
+    }
+    if (data.containsKey('minute_of_day')) {
+      context.handle(
+          _minuteOfDayMeta,
+          minuteOfDay.isAcceptableOrUnknown(
+              data['minute_of_day']!, _minuteOfDayMeta));
+    } else if (isInserting) {
+      context.missing(_minuteOfDayMeta);
+    }
+    if (data.containsKey('configured_at')) {
+      context.handle(
+          _configuredAtMeta,
+          configuredAt.isAcceptableOrUnknown(
+              data['configured_at']!, _configuredAtMeta));
+    } else if (isInserting) {
+      context.missing(_configuredAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BillReminderSettingsRow map(Map<String, dynamic> data,
+      {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BillReminderSettingsRow(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      enabled: attachedDatabase.typeMapping
+          .read(DriftSqlType.bool, data['${effectivePrefix}enabled'])!,
+      daysBefore: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}days_before'])!,
+      minuteOfDay: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}minute_of_day'])!,
+      configuredAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}configured_at'])!,
+    );
+  }
+
+  @override
+  $BillReminderSettingsTable createAlias(String alias) {
+    return $BillReminderSettingsTable(attachedDatabase, alias);
+  }
+}
+
+class BillReminderSettingsRow extends DataClass
+    implements Insertable<BillReminderSettingsRow> {
+  final int id;
+  final bool enabled;
+  final int daysBefore;
+  final int minuteOfDay;
+  final DateTime configuredAt;
+  const BillReminderSettingsRow(
+      {required this.id,
+      required this.enabled,
+      required this.daysBefore,
+      required this.minuteOfDay,
+      required this.configuredAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['enabled'] = Variable<bool>(enabled);
+    map['days_before'] = Variable<int>(daysBefore);
+    map['minute_of_day'] = Variable<int>(minuteOfDay);
+    map['configured_at'] = Variable<DateTime>(configuredAt);
+    return map;
+  }
+
+  BillReminderSettingsCompanion toCompanion(bool nullToAbsent) {
+    return BillReminderSettingsCompanion(
+      id: Value(id),
+      enabled: Value(enabled),
+      daysBefore: Value(daysBefore),
+      minuteOfDay: Value(minuteOfDay),
+      configuredAt: Value(configuredAt),
+    );
+  }
+
+  factory BillReminderSettingsRow.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BillReminderSettingsRow(
+      id: serializer.fromJson<int>(json['id']),
+      enabled: serializer.fromJson<bool>(json['enabled']),
+      daysBefore: serializer.fromJson<int>(json['daysBefore']),
+      minuteOfDay: serializer.fromJson<int>(json['minuteOfDay']),
+      configuredAt: serializer.fromJson<DateTime>(json['configuredAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'enabled': serializer.toJson<bool>(enabled),
+      'daysBefore': serializer.toJson<int>(daysBefore),
+      'minuteOfDay': serializer.toJson<int>(minuteOfDay),
+      'configuredAt': serializer.toJson<DateTime>(configuredAt),
+    };
+  }
+
+  BillReminderSettingsRow copyWith(
+          {int? id,
+          bool? enabled,
+          int? daysBefore,
+          int? minuteOfDay,
+          DateTime? configuredAt}) =>
+      BillReminderSettingsRow(
+        id: id ?? this.id,
+        enabled: enabled ?? this.enabled,
+        daysBefore: daysBefore ?? this.daysBefore,
+        minuteOfDay: minuteOfDay ?? this.minuteOfDay,
+        configuredAt: configuredAt ?? this.configuredAt,
+      );
+  BillReminderSettingsRow copyWithCompanion(
+      BillReminderSettingsCompanion data) {
+    return BillReminderSettingsRow(
+      id: data.id.present ? data.id.value : this.id,
+      enabled: data.enabled.present ? data.enabled.value : this.enabled,
+      daysBefore:
+          data.daysBefore.present ? data.daysBefore.value : this.daysBefore,
+      minuteOfDay:
+          data.minuteOfDay.present ? data.minuteOfDay.value : this.minuteOfDay,
+      configuredAt: data.configuredAt.present
+          ? data.configuredAt.value
+          : this.configuredAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BillReminderSettingsRow(')
+          ..write('id: $id, ')
+          ..write('enabled: $enabled, ')
+          ..write('daysBefore: $daysBefore, ')
+          ..write('minuteOfDay: $minuteOfDay, ')
+          ..write('configuredAt: $configuredAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, enabled, daysBefore, minuteOfDay, configuredAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BillReminderSettingsRow &&
+          other.id == this.id &&
+          other.enabled == this.enabled &&
+          other.daysBefore == this.daysBefore &&
+          other.minuteOfDay == this.minuteOfDay &&
+          other.configuredAt == this.configuredAt);
+}
+
+class BillReminderSettingsCompanion
+    extends UpdateCompanion<BillReminderSettingsRow> {
+  final Value<int> id;
+  final Value<bool> enabled;
+  final Value<int> daysBefore;
+  final Value<int> minuteOfDay;
+  final Value<DateTime> configuredAt;
+  const BillReminderSettingsCompanion({
+    this.id = const Value.absent(),
+    this.enabled = const Value.absent(),
+    this.daysBefore = const Value.absent(),
+    this.minuteOfDay = const Value.absent(),
+    this.configuredAt = const Value.absent(),
+  });
+  BillReminderSettingsCompanion.insert({
+    this.id = const Value.absent(),
+    required bool enabled,
+    required int daysBefore,
+    required int minuteOfDay,
+    required DateTime configuredAt,
+  })  : enabled = Value(enabled),
+        daysBefore = Value(daysBefore),
+        minuteOfDay = Value(minuteOfDay),
+        configuredAt = Value(configuredAt);
+  static Insertable<BillReminderSettingsRow> custom({
+    Expression<int>? id,
+    Expression<bool>? enabled,
+    Expression<int>? daysBefore,
+    Expression<int>? minuteOfDay,
+    Expression<DateTime>? configuredAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (enabled != null) 'enabled': enabled,
+      if (daysBefore != null) 'days_before': daysBefore,
+      if (minuteOfDay != null) 'minute_of_day': minuteOfDay,
+      if (configuredAt != null) 'configured_at': configuredAt,
+    });
+  }
+
+  BillReminderSettingsCompanion copyWith(
+      {Value<int>? id,
+      Value<bool>? enabled,
+      Value<int>? daysBefore,
+      Value<int>? minuteOfDay,
+      Value<DateTime>? configuredAt}) {
+    return BillReminderSettingsCompanion(
+      id: id ?? this.id,
+      enabled: enabled ?? this.enabled,
+      daysBefore: daysBefore ?? this.daysBefore,
+      minuteOfDay: minuteOfDay ?? this.minuteOfDay,
+      configuredAt: configuredAt ?? this.configuredAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (enabled.present) {
+      map['enabled'] = Variable<bool>(enabled.value);
+    }
+    if (daysBefore.present) {
+      map['days_before'] = Variable<int>(daysBefore.value);
+    }
+    if (minuteOfDay.present) {
+      map['minute_of_day'] = Variable<int>(minuteOfDay.value);
+    }
+    if (configuredAt.present) {
+      map['configured_at'] = Variable<DateTime>(configuredAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BillReminderSettingsCompanion(')
+          ..write('id: $id, ')
+          ..write('enabled: $enabled, ')
+          ..write('daysBefore: $daysBefore, ')
+          ..write('minuteOfDay: $minuteOfDay, ')
+          ..write('configuredAt: $configuredAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3733,6 +4047,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $TransactionRevisionsTable transactionRevisions =
       $TransactionRevisionsTable(this);
   late final $GoalsTable goals = $GoalsTable(this);
+  late final $BillReminderSettingsTable billReminderSettings =
+      $BillReminderSettingsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -3744,7 +4060,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
         transactions,
         bills,
         transactionRevisions,
-        goals
+        goals,
+        billReminderSettings
       ];
 }
 
@@ -7161,6 +7478,180 @@ typedef $$GoalsTableProcessedTableManager = ProcessedTableManager<
     (GoalRow, $$GoalsTableReferences),
     GoalRow,
     PrefetchHooks Function({bool accountId})>;
+typedef $$BillReminderSettingsTableCreateCompanionBuilder
+    = BillReminderSettingsCompanion Function({
+  Value<int> id,
+  required bool enabled,
+  required int daysBefore,
+  required int minuteOfDay,
+  required DateTime configuredAt,
+});
+typedef $$BillReminderSettingsTableUpdateCompanionBuilder
+    = BillReminderSettingsCompanion Function({
+  Value<int> id,
+  Value<bool> enabled,
+  Value<int> daysBefore,
+  Value<int> minuteOfDay,
+  Value<DateTime> configuredAt,
+});
+
+class $$BillReminderSettingsTableFilterComposer
+    extends Composer<_$AppDatabase, $BillReminderSettingsTable> {
+  $$BillReminderSettingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get enabled => $composableBuilder(
+      column: $table.enabled, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get daysBefore => $composableBuilder(
+      column: $table.daysBefore, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get minuteOfDay => $composableBuilder(
+      column: $table.minuteOfDay, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get configuredAt => $composableBuilder(
+      column: $table.configuredAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$BillReminderSettingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $BillReminderSettingsTable> {
+  $$BillReminderSettingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get enabled => $composableBuilder(
+      column: $table.enabled, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get daysBefore => $composableBuilder(
+      column: $table.daysBefore, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get minuteOfDay => $composableBuilder(
+      column: $table.minuteOfDay, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get configuredAt => $composableBuilder(
+      column: $table.configuredAt,
+      builder: (column) => ColumnOrderings(column));
+}
+
+class $$BillReminderSettingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BillReminderSettingsTable> {
+  $$BillReminderSettingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<bool> get enabled =>
+      $composableBuilder(column: $table.enabled, builder: (column) => column);
+
+  GeneratedColumn<int> get daysBefore => $composableBuilder(
+      column: $table.daysBefore, builder: (column) => column);
+
+  GeneratedColumn<int> get minuteOfDay => $composableBuilder(
+      column: $table.minuteOfDay, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get configuredAt => $composableBuilder(
+      column: $table.configuredAt, builder: (column) => column);
+}
+
+class $$BillReminderSettingsTableTableManager extends RootTableManager<
+    _$AppDatabase,
+    $BillReminderSettingsTable,
+    BillReminderSettingsRow,
+    $$BillReminderSettingsTableFilterComposer,
+    $$BillReminderSettingsTableOrderingComposer,
+    $$BillReminderSettingsTableAnnotationComposer,
+    $$BillReminderSettingsTableCreateCompanionBuilder,
+    $$BillReminderSettingsTableUpdateCompanionBuilder,
+    (
+      BillReminderSettingsRow,
+      BaseReferences<_$AppDatabase, $BillReminderSettingsTable,
+          BillReminderSettingsRow>
+    ),
+    BillReminderSettingsRow,
+    PrefetchHooks Function()> {
+  $$BillReminderSettingsTableTableManager(
+      _$AppDatabase db, $BillReminderSettingsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BillReminderSettingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BillReminderSettingsTableOrderingComposer(
+                  $db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BillReminderSettingsTableAnnotationComposer(
+                  $db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<bool> enabled = const Value.absent(),
+            Value<int> daysBefore = const Value.absent(),
+            Value<int> minuteOfDay = const Value.absent(),
+            Value<DateTime> configuredAt = const Value.absent(),
+          }) =>
+              BillReminderSettingsCompanion(
+            id: id,
+            enabled: enabled,
+            daysBefore: daysBefore,
+            minuteOfDay: minuteOfDay,
+            configuredAt: configuredAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required bool enabled,
+            required int daysBefore,
+            required int minuteOfDay,
+            required DateTime configuredAt,
+          }) =>
+              BillReminderSettingsCompanion.insert(
+            id: id,
+            enabled: enabled,
+            daysBefore: daysBefore,
+            minuteOfDay: minuteOfDay,
+            configuredAt: configuredAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$BillReminderSettingsTableProcessedTableManager
+    = ProcessedTableManager<
+        _$AppDatabase,
+        $BillReminderSettingsTable,
+        BillReminderSettingsRow,
+        $$BillReminderSettingsTableFilterComposer,
+        $$BillReminderSettingsTableOrderingComposer,
+        $$BillReminderSettingsTableAnnotationComposer,
+        $$BillReminderSettingsTableCreateCompanionBuilder,
+        $$BillReminderSettingsTableUpdateCompanionBuilder,
+        (
+          BillReminderSettingsRow,
+          BaseReferences<_$AppDatabase, $BillReminderSettingsTable,
+              BillReminderSettingsRow>
+        ),
+        BillReminderSettingsRow,
+        PrefetchHooks Function()>;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7179,4 +7670,6 @@ class $AppDatabaseManager {
       $$TransactionRevisionsTableTableManager(_db, _db.transactionRevisions);
   $$GoalsTableTableManager get goals =>
       $$GoalsTableTableManager(_db, _db.goals);
+  $$BillReminderSettingsTableTableManager get billReminderSettings =>
+      $$BillReminderSettingsTableTableManager(_db, _db.billReminderSettings);
 }

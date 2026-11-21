@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:drift/drift.dart' show DatabaseSchemaEntity, Value;
 import 'package:drift/native.dart';
 import 'package:finance_app/data/local/database.dart';
+import 'package:finance_app/features/notifications/data/reminder_settings_store.dart';
+import 'package:finance_app/features/notifications/domain/reminder_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -41,7 +43,7 @@ void main() {
     final version = await reopenedDb
         .customSelect('PRAGMA user_version')
         .getSingle();
-    expect(version.read<int>('user_version'), 4);
+    expect(version.read<int>('user_version'), 5);
     expect(
       (await reopenedDb.select(reopenedDb.accounts).getSingle())
           .currentBalanceCents,
@@ -91,7 +93,7 @@ void main() {
     addTearDown(() => directory.delete(recursive: true));
     final file = File('${directory.path}/finance_app.sqlite');
 
-    final previous = _VersionThreeDatabase(NativeDatabase(file));
+    final previous = _LegacyDatabase(NativeDatabase(file), 3);
     late int accountId;
     try {
       accountId = await previous
@@ -149,18 +151,84 @@ void main() {
     expect((await db.select(db.transactions).getSingle()).amountCents, 5001);
     expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
   });
+
+  test(
+    'adds reminder preferences to version 4 and keeps existing financial data',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'finance_reminder_migration_',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/finance_app.sqlite');
+      final previous = _LegacyDatabase(NativeDatabase(file), 4);
+      try {
+        await previous
+            .into(previous.bills)
+            .insert(
+              BillsCompanion.insert(
+                name: 'Internet',
+                amountCents: 12000,
+                dueDate: DateTime(2026, 12, 5),
+                billType: 'fixed',
+              ),
+            );
+        await previous
+            .into(previous.goals)
+            .insert(
+              GoalsCompanion.insert(
+                name: 'Viagem',
+                targetCents: 100000,
+                dueDate: DateTime(2027, 1, 20),
+                savedCents: const Value(20000),
+              ),
+            );
+      } finally {
+        await previous.close();
+      }
+
+      final db = AppDatabase.forTesting(NativeDatabase(file));
+      final store = ReminderSettingsStore(db);
+      try {
+        expect((await store.watch().first).enabled, isFalse);
+        await store.save(
+          const ReminderSettings(
+            enabled: true,
+            daysBefore: 3,
+            minuteOfDay: 8 * 60 + 15,
+          ),
+        );
+        expect((await db.select(db.bills).getSingle()).amountCents, 12000);
+        expect((await db.select(db.goals).getSingle()).savedCents, 20000);
+      } finally {
+        await db.close();
+      }
+
+      final reopened = AppDatabase.forTesting(NativeDatabase(file));
+      addTearDown(reopened.close);
+      final settings = await ReminderSettingsStore(reopened).watch().first;
+      expect(settings.enabled, isTrue);
+      expect(settings.daysBefore, 3);
+      expect(settings.minuteOfDay, 495);
+      expect(settings.configuredAt, isNotNull);
+    },
+  );
 }
 
-// The previous schema already used cents. Version 4 adds only the goals table.
-class _VersionThreeDatabase extends AppDatabase {
-  _VersionThreeDatabase(super.executor) : super.forTesting();
+// Versions 3 and 4 already used cents. Version 4 added the goals table.
+class _LegacyDatabase extends AppDatabase {
+  _LegacyDatabase(super.executor, this.schemaVersion) : super.forTesting();
 
   @override
-  int get schemaVersion => 3;
+  final int schemaVersion;
 
   @override
-  List<DatabaseSchemaEntity> get allSchemaEntities =>
-      super.allSchemaEntities.where((entity) => entity != goals).toList();
+  List<DatabaseSchemaEntity> get allSchemaEntities => super.allSchemaEntities
+      .where(
+        (entity) =>
+            entity != billReminderSettings &&
+            (schemaVersion >= 4 || entity != goals),
+      )
+      .toList();
 }
 
 // Frozen schema from before bills and recurrences were registered in Drift.
