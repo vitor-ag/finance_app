@@ -1,4 +1,5 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import '../../../../core/providers/database_provider.dart';
 import '../../data/repositories/transaction_repository_impl.dart';
 import '../../domain/entities/transaction.dart';
@@ -16,4 +17,9 @@ TransactionRepository transactionRepository(TransactionRepositoryRef ref) {
 Stream<List<Transaction>> allTransactions(AllTransactionsRef ref) {
   final repo = ref.watch(transactionRepositoryProvider);
   return repo.watchAllTransactions();
+}
+
+@riverpod
+Stream<List<Transaction>> deletedTransactions(DeletedTransactionsRef ref) {
+  return ref.watch(transactionRepositoryProvider).watchDeletedTransactions();
 }

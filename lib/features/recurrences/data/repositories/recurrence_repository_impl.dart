@@ -46,26 +46,39 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
 
   @override
   Future<int> createRecurrence(Recurrence recurrence) {
-    return db
-        .into(db.recurrences)
-        .insert(
-          RecurrencesCompanion.insert(
-            name: recurrence.name,
-            type: recurrence.type,
-            amount: recurrence.amount,
-            accountId: recurrence.accountId,
-            destinationAccountId: Value(recurrence.destinationAccountId),
-            categoryId: Value(recurrence.categoryId),
-            description: Value(recurrence.description),
-            frequency: recurrence.frequency,
-            dayOfMonth: Value(recurrence.dayOfMonth),
-            weekday: Value(recurrence.weekday),
-            startDate: recurrence.startDate,
-            endDate: Value(recurrence.endDate),
-            maxOccurrences: Value(recurrence.maxOccurrences),
-            nextOccurrenceDate: recurrence.startDate,
-          ),
-        );
+    return db.transaction(() async {
+      for (final id in [
+        recurrence.accountId,
+        recurrence.destinationAccountId,
+      ].nonNulls) {
+        final account = await (db.select(
+          db.accounts,
+        )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
+        if (account == null || !account.isActive) {
+          throw StateError('Selecione uma conta ativa.');
+        }
+      }
+      return db
+          .into(db.recurrences)
+          .insert(
+            RecurrencesCompanion.insert(
+              name: recurrence.name,
+              type: recurrence.type,
+              amount: recurrence.amount,
+              accountId: recurrence.accountId,
+              destinationAccountId: Value(recurrence.destinationAccountId),
+              categoryId: Value(recurrence.categoryId),
+              description: Value(recurrence.description),
+              frequency: recurrence.frequency,
+              dayOfMonth: Value(recurrence.dayOfMonth),
+              weekday: Value(recurrence.weekday),
+              startDate: recurrence.startDate,
+              endDate: Value(recurrence.endDate),
+              maxOccurrences: Value(recurrence.maxOccurrences),
+              nextOccurrenceDate: recurrence.startDate,
+            ),
+          );
+    });
   }
 
   @override

@@ -1,199 +1,178 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../accounts/domain/entities/account.dart';
+
+import '../../../../core/widgets/record_actions.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
+import '../../../bills/presentation/providers/bill_providers.dart';
 import '../../../categories/presentation/providers/category_providers.dart';
 import '../../domain/entities/transaction.dart';
 import '../providers/transaction_providers.dart';
+import '../widgets/transaction_form.dart';
 import '../widgets/transaction_tile.dart';
 
-class TransactionsScreen extends ConsumerWidget {
+enum _EntryAction { edit, duplicate, delete }
+
+class TransactionsScreen extends ConsumerStatefulWidget {
   const TransactionsScreen({super.key});
 
-  void _showAddTransactionDialog(BuildContext context, WidgetRef ref) {
-    final amountController = TextEditingController();
-    final descriptionController = TextEditingController();
+  @override
+  ConsumerState<TransactionsScreen> createState() => _TransactionsScreenState();
+}
 
-    String selectedType = 'expense';
-    int? selectedAccountId;
-    int? selectedDestinationAccountId;
-    int? selectedCategoryId;
+class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
+  bool _showTrash = false;
 
-    showModalBottomSheet(
+  Future<void> _openForm({Transaction? source, bool duplicate = false}) {
+    return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => Consumer(
-        builder: (context, ref, _) {
-          final accounts = ref.watch(allAccountsProvider).valueOrNull ?? [];
-          final categoryType = selectedType == 'income' ? 'income' : 'expense';
-          final categories = ref
-                  .watch(allCategoriesProvider(type: categoryType))
-                  .valueOrNull ??
-              [];
+      builder: (_) => TransactionForm(source: source, duplicate: duplicate),
+    );
+  }
 
-          return StatefulBuilder(
-            builder: (context, setState) {
+  Future<void> _showActions(
+    Transaction entry, {
+    required bool isBillPayment,
+  }) async {
+    if (_showTrash) {
+      await _changeTrashStatus(entry, restore: true);
+      return;
+    }
+    final action = await showModalBottomSheet<_EntryAction>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            if (isBillPayment)
+              const ListTile(
+                leading: Icon(Icons.receipt_long),
+                title: Text('Pagamento vinculado a uma conta a pagar'),
+              ),
+            if (!isBillPayment)
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Editar'),
+                onTap: () => Navigator.pop(context, _EntryAction.edit),
+              ),
+            ListTile(
+              leading: const Icon(Icons.copy_outlined),
+              title: const Text('Duplicar'),
+              onTap: () => Navigator.pop(context, _EntryAction.duplicate),
+            ),
+            if (!isBillPayment)
+              ListTile(
+                leading: const Icon(Icons.delete_outline),
+                title: const Text('Mover para a lixeira'),
+                onTap: () => Navigator.pop(context, _EntryAction.delete),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _EntryAction.edit:
+        await _openForm(source: entry);
+      case _EntryAction.duplicate:
+        await _openForm(source: entry, duplicate: true);
+      case _EntryAction.delete:
+        await _changeTrashStatus(entry, restore: false);
+    }
+  }
+
+  Future<void> _changeTrashStatus(
+    Transaction entry, {
+    required bool restore,
+  }) async {
+    final confirmed = await confirmRecordAction(
+      context,
+      title: restore
+          ? 'Restaurar lançamento?'
+          : 'Mover lançamento para a lixeira?',
+      message: restore
+          ? 'O lançamento volta ao histórico e seu efeito no saldo é reaplicado.'
+          : 'O lançamento pode ser restaurado depois. Seu efeito no saldo será estornado.',
+      action: restore ? 'Restaurar' : 'Mover para a lixeira',
+    );
+    if (!confirmed || !mounted) return;
+    final repo = ref.read(transactionRepositoryProvider);
+    try {
+      if (restore) {
+        await repo.restoreTransaction(entry.id!);
+      } else {
+        await repo.deleteTransaction(entry.id!);
+      }
+    } catch (error) {
+      if (mounted) {
+        showRecordError(
+          context,
+          error,
+          'Não foi possível atualizar o lançamento.',
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = ref.watch(
+      _showTrash ? deletedTransactionsProvider : allTransactionsProvider,
+    );
+    final accounts = ref.watch(allAccountsProvider).valueOrNull ?? [];
+    final categories = ref.watch(allCategoriesProvider()).valueOrNull ?? [];
+    final bills = ref.watch(allBillsProvider).valueOrNull ?? [];
+    final accountNames = {
+      for (final account in accounts) account.id: account.name,
+    };
+    final categoryNames = {
+      for (final category in categories) category.id: category.name,
+    };
+    final billPayments = {for (final bill in bills) bill.paidTransactionId};
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_showTrash ? 'Lixeira' : 'Lançamentos'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: _showTrash ? 'Voltar ao histórico' : 'Abrir lixeira',
+            icon: Icon(_showTrash ? Icons.history : Icons.delete_outline),
+            onPressed: () => setState(() => _showTrash = !_showTrash),
+          ),
+        ],
+      ),
+      body: entries.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, _) =>
+            const Center(child: Text('Erro ao carregar lançamentos.')),
+        data: (transactions) {
+          if (transactions.isEmpty) {
+            return Center(
+              child: Text(
+                _showTrash ? 'Lixeira vazia' : 'Nenhum lançamento registrado',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: transactions.length,
+            itemBuilder: (context, index) {
+              final entry = transactions[index];
               return Padding(
-                padding: EdgeInsets.only(
-                  left: 20,
-                  right: 20,
-                  top: 24,
-                  bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-                ),
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Novo Lançamento',
-                        style:
-                            Theme.of(context).textTheme.titleLarge?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                      ),
-                      const SizedBox(height: 16),
-                      SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                              value: 'expense', label: Text('Saída')),
-                          ButtonSegment(
-                              value: 'income', label: Text('Entrada')),
-                          ButtonSegment(
-                              value: 'transfer',
-                              label: Text('Transferência')),
-                        ],
-                        selected: {selectedType},
-                        onSelectionChanged: (selection) => setState(() {
-                          selectedType = selection.first;
-                          selectedCategoryId = null;
-                        }),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: amountController,
-                        keyboardType:
-                            const TextInputType.numberWithOptions(
-                                decimal: true),
-                        decoration: const InputDecoration(
-                          labelText: 'Valor (R\$)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<int>(
-                        initialValue: selectedAccountId,
-                        decoration: InputDecoration(
-                          labelText: selectedType == 'transfer'
-                              ? 'Conta de Origem'
-                              : 'Conta',
-                          border: const OutlineInputBorder(),
-                        ),
-                        items: accounts
-                            .map((a) => DropdownMenuItem(
-                                  value: a.id,
-                                  child: Text(a.name),
-                                ))
-                            .toList(),
-                        onChanged: (val) =>
-                            setState(() => selectedAccountId = val),
-                      ),
-                      if (selectedType == 'transfer') ...[
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<int>(
-                          initialValue: selectedDestinationAccountId,
-                          decoration: const InputDecoration(
-                            labelText: 'Conta de Destino',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: accounts
-                              .where((a) => a.id != selectedAccountId)
-                              .map((a) => DropdownMenuItem(
-                                    value: a.id,
-                                    child: Text(a.name),
-                                  ))
-                              .toList(),
-                          onChanged: (val) => setState(
-                              () => selectedDestinationAccountId = val),
-                        ),
-                      ],
-                      if (selectedType != 'transfer') ...[
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<int>(
-                          initialValue: selectedCategoryId,
-                          decoration: const InputDecoration(
-                            labelText: 'Categoria',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: categories
-                              .map((c) => DropdownMenuItem(
-                                    value: c.id,
-                                    child: Text(c.name),
-                                  ))
-                              .toList(),
-                          onChanged: (val) =>
-                              setState(() => selectedCategoryId = val),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: descriptionController,
-                        decoration: const InputDecoration(
-                          labelText: 'Observação (opcional)',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      SizedBox(
-                        width: double.infinity,
-                        height: 48,
-                        child: FilledButton(
-                          onPressed: () async {
-                            final amount = double.tryParse(
-                                  amountController.text
-                                      .replaceAll(',', '.'),
-                                ) ??
-                                0.0;
-
-                            if (amount <= 0 || selectedAccountId == null) {
-                              return;
-                            }
-                            if (selectedType == 'transfer' &&
-                                selectedDestinationAccountId == null) {
-                              return;
-                            }
-
-                            final newTransaction = Transaction(
-                              type: selectedType,
-                              amount: amount,
-                              date: DateTime.now(),
-                              accountId: selectedAccountId!,
-                              destinationAccountId: selectedType == 'transfer'
-                                  ? selectedDestinationAccountId
-                                  : null,
-                              categoryId: selectedType != 'transfer'
-                                  ? selectedCategoryId
-                                  : null,
-                              description:
-                                  descriptionController.text.trim().isEmpty
-                                      ? null
-                                      : descriptionController.text.trim(),
-                              createdAt: DateTime.now(),
-                            );
-
-                            await ref
-                                .read(transactionRepositoryProvider)
-                                .createTransaction(newTransaction);
-
-                            if (context.mounted) Navigator.pop(context);
-                          },
-                          child: const Text('Salvar Lançamento'),
-                        ),
-                      ),
-                    ],
+                padding: const EdgeInsets.only(bottom: 8),
+                child: TransactionTile(
+                  transaction: entry,
+                  accountName: accountNames[entry.accountId] ?? '-',
+                  categoryName: categoryNames[entry.categoryId],
+                  destinationAccountName:
+                      accountNames[entry.destinationAccountId],
+                  onTap: () => _showActions(
+                    entry,
+                    isBillPayment: billPayments.contains(entry.id),
                   ),
                 ),
               );
@@ -201,81 +180,13 @@ class TransactionsScreen extends ConsumerWidget {
           );
         },
       ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final transactionsAsync = ref.watch(allTransactionsProvider);
-    final accounts = ref.watch(allAccountsProvider).valueOrNull ?? [];
-    final expenseCategories =
-        ref.watch(allCategoriesProvider(type: 'expense')).valueOrNull ?? [];
-    final incomeCategories =
-        ref.watch(allCategoriesProvider(type: 'income')).valueOrNull ?? [];
-    final allCategories = [...expenseCategories, ...incomeCategories];
-
-    String accountName(int id) =>
-        accounts.firstWhere((a) => a.id == id,
-                orElse: () => Account(
-                    name: '-',
-                    type: '-',
-                    initialBalance: 0,
-                    currentBalance: 0,
-                    createdAt: DateTime.now()))
-            .name;
-
-    String? categoryName(int? id) {
-      if (id == null) return null;
-      final match = allCategories.where((c) => c.id == id);
-      return match.isEmpty ? null : match.first.name;
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Lançamentos',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: transactionsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(child: Text('Erro: $error')),
-        data: (transactions) {
-          if (transactions.isEmpty) {
-            return const Center(
-              child: Text(
-                'Nenhum lançamento registrado',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: transactions.length,
-            itemBuilder: (context, index) {
-              final t = transactions[index];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: TransactionTile(
-                  transaction: t,
-                  accountName: accountName(t.accountId),
-                  categoryName: categoryName(t.categoryId),
-                  destinationAccountName: t.destinationAccountId != null
-                      ? accountName(t.destinationAccountId!)
-                      : null,
-                ),
-              );
-            },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddTransactionDialog(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Novo Lançamento'),
-      ),
+      floatingActionButton: _showTrash
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _openForm,
+              icon: const Icon(Icons.add),
+              label: const Text('Novo Lançamento'),
+            ),
     );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+
 import '../../../../data/local/database.dart';
 import '../../domain/entities/account.dart';
 import '../../domain/repositories/account_repository.dart';
@@ -25,22 +26,25 @@ class AccountRepositoryImpl implements AccountRepository {
 
   @override
   Stream<List<Account>> watchAllAccounts() {
-    return db.select(db.accounts).watch().map(
-          (rows) => rows.map(_mapRow).toList(),
-        );
+    return db
+        .select(db.accounts)
+        .watch()
+        .map((rows) => rows.map(_mapRow).toList());
   }
 
   @override
   Future<Account?> getAccountById(int id) async {
-    final row = await (db.select(db.accounts)
-          ..where((tbl) => tbl.id.equals(id)))
-        .getSingleOrNull();
+    final row = await (db.select(
+      db.accounts,
+    )..where((tbl) => tbl.id.equals(id))).getSingleOrNull();
     return row == null ? null : _mapRow(row);
   }
 
   @override
   Future<int> createAccount(Account account) {
-    return db.into(db.accounts).insert(
+    return db
+        .into(db.accounts)
+        .insert(
           AccountsCompanion.insert(
             name: account.name,
             type: account.type,
@@ -55,23 +59,40 @@ class AccountRepositoryImpl implements AccountRepository {
 
   @override
   Future<void> updateAccount(Account account) {
-    return (db.update(db.accounts)
-            ..where((tbl) => tbl.id.equals(account.id!)))
-        .write(
-        AccountsCompanion(
+    return (db.update(
+      db.accounts,
+    )..where((tbl) => tbl.id.equals(account.id!))).write(
+      AccountsCompanion(
         name: Value(account.name),
         type: Value(account.type),
-        currentBalance: Value(account.currentBalance),
         color: Value(account.color),
         icon: Value(account.icon),
         notes: Value(account.notes),
-        ),
+      ),
     );
-    }
+  }
 
   @override
   Future<void> archiveAccount(int id) {
-    return (db.update(db.accounts)..where((tbl) => tbl.id.equals(id)))
-        .write(const AccountsCompanion(isActive: Value(false)));
+    return db.transaction(() async {
+      final recurrence =
+          await (db.select(db.recurrences)
+                ..where(
+                  (tbl) =>
+                      tbl.status.isIn(['active', 'paused']) &
+                      (tbl.accountId.equals(id) |
+                          tbl.destinationAccountId.equals(id)),
+                )
+                ..limit(1))
+              .getSingleOrNull();
+      if (recurrence != null) {
+        throw StateError(
+          'Cancele as recorrências desta conta antes de arquivá-la.',
+        );
+      }
+      await (db.update(db.accounts)..where((tbl) => tbl.id.equals(id))).write(
+        const AccountsCompanion(isActive: Value(false)),
+      );
+    });
   }
 }

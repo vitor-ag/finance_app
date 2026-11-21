@@ -134,4 +134,81 @@ void main() {
     final account = await accountRepo.getAccountById(accountId);
     expect(account!.currentBalance, 100);
   });
+
+  test(
+    'editing a transfer replaces both balance effects and restores once',
+    () async {
+      final now = DateTime.now();
+      Future<int> account(String name) => accountRepo.createAccount(
+        Account(
+          name: name,
+          type: 'cash',
+          initialBalance: 100,
+          currentBalance: 100,
+          createdAt: now,
+        ),
+      );
+      final origin = await account('Origem');
+      final destination = await account('Destino');
+      final other = await account('Nova conta');
+      Future<List<double>> balances() async => [
+        for (final id in [origin, destination, other])
+          (await accountRepo.getAccountById(id))!.currentBalance,
+      ];
+      final id = await transactionRepo.createTransaction(
+        Transaction(
+          type: 'transfer',
+          amount: 40,
+          date: now,
+          accountId: origin,
+          destinationAccountId: destination,
+          description: 'Texto antigo',
+          createdAt: now,
+        ),
+      );
+      final original = (await transactionRepo.getTransactionById(id))!;
+      await expectLater(
+        transactionRepo.updateTransaction(
+          original.copyWith(destinationAccountId: origin),
+        ),
+        throwsStateError,
+      );
+      expect(await balances(), [60, 140, 100]);
+
+      final revisedDate = now.subtract(const Duration(days: 2));
+      await transactionRepo.updateTransaction(
+        Transaction(
+          id: id,
+          type: 'transfer',
+          amount: 25,
+          date: revisedDate,
+          accountId: other,
+          destinationAccountId: origin,
+          createdAt: now,
+        ),
+      );
+      expect(await balances(), [125, 100, 75]);
+      final edited = (await transactionRepo.getTransactionById(id))!;
+      expect(edited.description, isNull);
+      expect(edited.date.day, revisedDate.day);
+
+      await Future.wait([
+        transactionRepo.deleteTransaction(id),
+        transactionRepo.deleteTransaction(id),
+      ]);
+      expect(await balances(), [100, 100, 100]);
+      expect(await transactionRepo.watchAllTransactions().first, isEmpty);
+      expect(
+        (await transactionRepo.watchDeletedTransactions().first).single.id,
+        id,
+      );
+
+      await Future.wait([
+        transactionRepo.restoreTransaction(id),
+        transactionRepo.restoreTransaction(id),
+      ]);
+      expect(await balances(), [125, 100, 75]);
+      expect(await transactionRepo.watchDeletedTransactions().first, isEmpty);
+    },
+  );
 }

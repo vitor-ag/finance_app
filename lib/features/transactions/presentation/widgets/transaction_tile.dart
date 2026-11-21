@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../../domain/entities/transaction.dart';
 
 class TransactionTile extends StatelessWidget {
@@ -51,8 +52,7 @@ class TransactionTile extends StatelessWidget {
         ),
       ),
       child: ListTile(
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         onTap: onTap,
         leading: CircleAvatar(
           radius: 20,
@@ -65,20 +65,46 @@ class TransactionTile extends StatelessWidget {
               : (isTransfer ? 'Transferência' : (categoryName ?? '-')),
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
         ),
-        subtitle: Text(
-          subtitle,
+        subtitle: DefaultTextStyle(
           style: TextStyle(
             color: theme.colorScheme.onSurfaceVariant,
             fontSize: 12,
           ),
-        ),
-        trailing: Text(
-          '$sign${_formatCurrency(transaction.amount)}',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 15,
-            color: color,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(subtitle),
+              Text(
+                '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}',
+              ),
+            ],
           ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$sign${_formatCurrency(transaction.amount)}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+                color: color,
+              ),
+            ),
+            if (onTap != null)
+              IconButton(
+                tooltip: transaction.deletedAt == null
+                    ? 'Ações do lançamento'
+                    : 'Restaurar lançamento',
+                icon: Icon(
+                  transaction.deletedAt == null
+                      ? Icons.more_vert
+                      : Icons.restore,
+                ),
+                onPressed: onTap,
+              ),
+          ],
         ),
       ),
     );

@@ -38,5 +38,23 @@ final allTransactionsProvider =
 );
 
 typedef AllTransactionsRef = AutoDisposeStreamProviderRef<List<Transaction>>;
+String _$deletedTransactionsHash() =>
+    r'2d0a19e87e48fc7930ad410b2b2801bee382322b';
+
+/// See also [deletedTransactions].
+@ProviderFor(deletedTransactions)
+final deletedTransactionsProvider =
+    AutoDisposeStreamProvider<List<Transaction>>.internal(
+  deletedTransactions,
+  name: r'deletedTransactionsProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$deletedTransactionsHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef DeletedTransactionsRef
+    = AutoDisposeStreamProviderRef<List<Transaction>>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

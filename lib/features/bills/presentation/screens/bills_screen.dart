@@ -90,6 +90,7 @@ class BillsScreen extends ConsumerWidget {
                           border: OutlineInputBorder(),
                         ),
                         items: categories
+                            .where((category) => category.isActive)
                             .map((c) => DropdownMenuItem(
                                   value: c.id,
                                   child: Text(c.name),
@@ -219,7 +220,9 @@ class BillsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final billsAsync = ref.watch(allBillsProvider);
-    final accounts = ref.watch(allAccountsProvider).valueOrNull;
+    final accounts = ref.watch(allAccountsProvider).valueOrNull
+        ?.where((account) => account.isActive)
+        .toList();
     final expenseCategories =
         ref.watch(allCategoriesProvider(type: 'expense')).valueOrNull ?? [];
 

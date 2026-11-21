@@ -10,6 +10,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:finance_app/features/categories/data/repositories/category_repository_impl.dart';
 import 'package:finance_app/features/categories/domain/entities/category.dart';
 
+Future<void> closeTestDatabase(WidgetTester tester, AppDatabase db) async {
+  await tester.pumpWidget(const SizedBox.shrink());
+  await tester.pumpAndSettle();
+  await db.close();
+}
+
 void main() {
   testWidgets('AccountsScreen renders empty state', (WidgetTester tester) async {
     final testDb = AppDatabase.forTesting(NativeDatabase.memory());
@@ -166,13 +172,78 @@ void main() {
     await tester.pumpAndSettle();
 
     // Tap "Salvar Lançamento"
-    await tester.tap(find.text('Salvar Lançamento'));
+    final saveEntry = find.text('Salvar Lançamento');
+    await tester.ensureVisible(saveEntry);
+    await tester.tap(saveEntry);
     await tester.pumpAndSettle();
 
     expect(find.text('Nubank'), findsOneWidget);
     expect(find.text('-R\$ 50,00'), findsOneWidget);
+    await closeTestDatabase(tester, testDb);
+  });
 
-    await testDb.close();
+  testWidgets('Lançamentos can edit, duplicate, trash and restore an entry', (
+    tester,
+  ) async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    await db
+        .into(db.accounts)
+        .insert(AccountsCompanion.insert(name: 'Carteira', type: 'cash'));
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [databaseProvider.overrideWithValue(db)],
+        child: const MyApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Lançamentos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Novo Lançamento'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Valor (R\$)'), '20');
+    await tester.tap(find.byType(DropdownButtonFormField<int>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Carteira').last);
+    await tester.pumpAndSettle();
+
+    final save = find.text('Salvar Lançamento');
+    Future<void> saveForm() async {
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> selectAction(String label) async {
+      await tester.tap(find.byTooltip('Ações do lançamento').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    await saveForm();
+    await selectAction('Editar');
+    await tester.enterText(find.widgetWithText(TextField, 'Valor (R\$)'), '25');
+    await saveForm();
+    await selectAction('Duplicar');
+    await saveForm();
+    expect(find.text('-R\$ 25,00'), findsNWidgets(2));
+
+    await selectAction('Mover para a lixeira');
+    await tester.tap(find.widgetWithText(FilledButton, 'Mover para a lixeira'));
+    await tester.pumpAndSettle();
+    expect(find.text('-R\$ 25,00'), findsOneWidget);
+    expect((await db.select(db.accounts).getSingle()).currentBalance, -25);
+
+    await tester.tap(find.byTooltip('Abrir lixeira'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Restaurar lançamento'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Restaurar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Lixeira vazia'), findsOneWidget);
+    expect((await db.select(db.accounts).getSingle()).currentBalance, -50);
+    await closeTestDatabase(tester, db);
   });
 
   testWidgets('BillsScreen can create a bill, mark it as paid and update balance',
@@ -334,7 +405,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('+R\$ 1000,00'), findsOneWidget);
-
-    await testDb.close();
+    await closeTestDatabase(tester, testDb);
   });
 }

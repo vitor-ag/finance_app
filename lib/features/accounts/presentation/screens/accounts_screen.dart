@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../../core/widgets/record_actions.dart';
 import '../../domain/entities/account.dart';
 import '../providers/account_providers.dart';
 import '../widgets/account_card.dart';
@@ -11,12 +13,26 @@ class AccountsScreen extends ConsumerWidget {
     return 'R\$ ${value.toStringAsFixed(2).replaceAll('.', ',')}';
   }
 
-  void _showAddAccountDialog(BuildContext context, WidgetRef ref) {
-    final nameController = TextEditingController();
-    final balanceController = TextEditingController();
-    String selectedType = 'digital';
+  Future<void> _showAccountForm(
+    BuildContext context,
+    WidgetRef ref, {
+    Account? account,
+  }) async {
+    final form = GlobalKey<FormState>();
+    var name = account?.name ?? '';
+    var balance = 0.0;
+    var selectedType = account?.type ?? 'digital';
+    var saving = false;
+    const types = {
+      'digital': 'Conta Digital',
+      'checking': 'Conta Corrente',
+      'savings': 'Poupança',
+      'cash': 'Dinheiro / Carteira',
+      'investment': 'Investimentos',
+    };
+    final repo = ref.read(accountRepositoryProvider);
 
-    showModalBottomSheet(
+    await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
@@ -31,86 +47,155 @@ class AccountsScreen extends ConsumerWidget {
               top: 24,
               bottom: MediaQuery.of(context).viewInsets.bottom + 24,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Nova Conta',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
+            child: SingleChildScrollView(
+              child: Form(
+                key: form,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account == null ? 'Nova Conta' : 'Editar Conta',
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      initialValue: name,
+                      onSaved: (value) => name = value!.trim(),
+                      validator: (value) {
+                        final text = value?.trim() ?? '';
+                        if (text.isEmpty || text.length > 60) {
+                          return 'Digite um nome de 1 a 60 caracteres.';
+                        }
+                        return null;
+                      },
+                      decoration: const InputDecoration(
+                        labelText: 'Nome da Conta (ex: Nubank, Carteira)',
+                        border: OutlineInputBorder(),
                       ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nome da Conta (ex: Nubank, Carteira)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  initialValue: selectedType,
-                  decoration: const InputDecoration(
-                    labelText: 'Tipo de Conta',
-                    border: OutlineInputBorder(),
-                  ),
-                  items: const [
-                    DropdownMenuItem(value: 'digital', child: Text('Conta Digital')),
-                    DropdownMenuItem(value: 'checking', child: Text('Conta Corrente')),
-                    DropdownMenuItem(value: 'savings', child: Text('Poupança')),
-                    DropdownMenuItem(value: 'cash', child: Text('Dinheiro / Carteira')),
-                    DropdownMenuItem(value: 'investment', child: Text('Investimentos')),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedType,
+                      decoration: const InputDecoration(
+                        labelText: 'Tipo de Conta',
+                        border: OutlineInputBorder(),
+                      ),
+                      items: [
+                        for (final entry in types.entries)
+                          DropdownMenuItem(
+                            value: entry.key,
+                            child: Text(entry.value),
+                          ),
+                        if (account != null && !types.containsKey(account.type))
+                          DropdownMenuItem(
+                            value: account.type,
+                            child: Text(account.type),
+                          ),
+                      ],
+                      onChanged: (val) => setState(() => selectedType = val!),
+                    ),
+                    if (account == null) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                          signed: true,
+                        ),
+                        validator: (value) {
+                          final input = value?.trim() ?? '';
+                          final parsed = double.tryParse(
+                            input.replaceAll(',', '.'),
+                          );
+                          return input.isEmpty || parsed?.isFinite == true
+                              ? null
+                              : 'Informe um saldo válido.';
+                        },
+                        onSaved: (value) => balance =
+                            double.tryParse(value!.replaceAll(',', '.')) ?? 0,
+                        decoration: const InputDecoration(
+                          labelText: 'Saldo Inicial (R\$)',
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: FilledButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final state = form.currentState!;
+                                if (!state.validate()) return;
+                                state.save();
+                                setState(() => saving = true);
+                                try {
+                                  if (account == null) {
+                                    await repo.createAccount(
+                                      Account(
+                                        name: name,
+                                        type: selectedType,
+                                        initialBalance: balance,
+                                        currentBalance: balance,
+                                        createdAt: DateTime.now(),
+                                      ),
+                                    );
+                                  } else {
+                                    await repo.updateAccount(
+                                      account.copyWith(
+                                        name: name,
+                                        type: selectedType,
+                                      ),
+                                    );
+                                  }
+                                  if (context.mounted) Navigator.pop(context);
+                                } catch (error) {
+                                  if (!context.mounted) return;
+                                  setState(() => saving = false);
+                                  showRecordError(
+                                    context,
+                                    error,
+                                    'Não foi possível salvar a conta.',
+                                  );
+                                }
+                              },
+                        child: const Text('Salvar Conta'),
+                      ),
+                    ),
                   ],
-                  onChanged: (val) => setState(() => selectedType = val!),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: balanceController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Saldo Inicial (R\$)',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton(
-                    onPressed: () async {
-                      final name = nameController.text.trim();
-                      final balance = double.tryParse(
-                            balanceController.text.replaceAll(',', '.'),
-                          ) ??
-                          0.0;
-
-                      if (name.isEmpty) return;
-
-                      final newAccount = Account(
-                        name: name,
-                        type: selectedType,
-                        initialBalance: balance,
-                        currentBalance: balance,
-                        createdAt: DateTime.now(),
-                      );
-
-                      await ref
-                          .read(accountRepositoryProvider)
-                          .createAccount(newAccount);
-
-                      if (context.mounted) Navigator.pop(context);
-                    },
-                    child: const Text('Salvar Conta'),
-                  ),
-                ),
-              ],
+              ),
             ),
           );
         },
       ),
     );
+  }
+
+  Future<void> _archiveAccount(
+    BuildContext context,
+    WidgetRef ref,
+    Account account,
+  ) async {
+    final repo = ref.read(accountRepositoryProvider);
+    final confirmed = await confirmRecordAction(
+      context,
+      title: 'Arquivar conta?',
+      message:
+          '${account.name} sairá das opções de novos lançamentos. O histórico será preservado.',
+      action: 'Arquivar',
+    );
+    if (!confirmed || !context.mounted) return;
+    try {
+      await repo.archiveAccount(account.id!);
+    } catch (error) {
+      if (context.mounted) {
+        showRecordError(context, error, 'Não foi possível arquivar a conta.');
+      }
+    }
   }
 
   @override
@@ -128,9 +213,8 @@ class AccountsScreen extends ConsumerWidget {
       ),
       body: accountsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => Center(
-          child: Text('Erro ao carregar contas: $error'),
-        ),
+        error: (error, _) =>
+            Center(child: Text('Erro ao carregar contas: $error')),
         data: (accounts) {
           final totalBalance = accounts.fold<double>(
             0.0,
@@ -145,7 +229,9 @@ class AccountsScreen extends ConsumerWidget {
                   margin: const EdgeInsets.all(16),
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(alpha: 0.4),
+                    color: theme.colorScheme.primaryContainer.withValues(
+                      alpha: 0.4,
+                    ),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: theme.colorScheme.primary.withValues(alpha: 0.2),
@@ -173,7 +259,7 @@ class AccountsScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${accounts.length} conta(s) ativa(s)',
+                        '${accounts.where((account) => account.isActive).length} conta(s) ativa(s)',
                         style: TextStyle(
                           fontSize: 12,
                           color: theme.colorScheme.outline,
@@ -221,16 +307,20 @@ class AccountsScreen extends ConsumerWidget {
                 SliverPadding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final account = accounts[index];
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: AccountCard(account: account),
-                        );
-                      },
-                      childCount: accounts.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final account = accounts[index];
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: AccountCard(
+                          account: account,
+                          onTap: () =>
+                              _showAccountForm(context, ref, account: account),
+                          onArchive: account.isActive
+                              ? () => _archiveAccount(context, ref, account)
+                              : null,
+                        ),
+                      );
+                    }, childCount: accounts.length),
                   ),
                 ),
             ],
@@ -238,7 +328,7 @@ class AccountsScreen extends ConsumerWidget {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAddAccountDialog(context, ref),
+        onPressed: () => _showAccountForm(context, ref),
         icon: const Icon(Icons.add),
         label: const Text('Nova Conta'),
       ),

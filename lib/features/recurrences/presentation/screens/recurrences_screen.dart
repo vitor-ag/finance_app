@@ -27,10 +27,7 @@ class RecurrencesScreen extends ConsumerWidget {
       builder: (ctx) => Consumer(
         builder: (context, ref, _) {
           final accounts = ref.watch(allAccountsProvider).valueOrNull ?? [];
-          final categoryType = selectedType == 'income' ? 'income' : 'expense';
-          final categories = ref
-                  .watch(allCategoriesProvider(type: categoryType))
-                  .valueOrNull ??
+          final categories = ref.watch(allCategoriesProvider()).valueOrNull ??
               [];
 
           return StatefulBuilder(
@@ -95,6 +92,7 @@ class RecurrencesScreen extends ConsumerWidget {
                           border: OutlineInputBorder(),
                         ),
                         items: accounts
+                            .where((account) => account.isActive)
                             .map((a) => DropdownMenuItem(
                                   value: a.id,
                                   child: Text(a.name),
@@ -105,12 +103,14 @@ class RecurrencesScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 12),
                       DropdownButtonFormField<int>(
+                        key: ValueKey(selectedType),
                         initialValue: selectedCategoryId,
                         decoration: const InputDecoration(
                           labelText: 'Categoria',
                           border: OutlineInputBorder(),
                         ),
                         items: categories
+                            .where((category) => category.isActive && category.type == selectedType)
                             .map((c) => DropdownMenuItem(
                                   value: c.id,
                                   child: Text(c.name),

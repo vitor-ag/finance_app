@@ -21,4 +21,32 @@ void main() {
 
     await db.close();
   });
+
+  test(
+    'keeps parent links when archiving and rejects deeper nesting',
+    () async {
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      final repo = CategoryRepositoryImpl(db);
+      final parentId = await repo.createCategory(
+        const Category(name: 'Alimentação', type: 'expense'),
+      );
+      final childId = await repo.createCategory(
+        Category(name: 'Mercado', type: 'expense', parentId: parentId),
+      );
+      await expectLater(
+        repo.createCategory(
+          Category(name: 'Padaria', type: 'expense', parentId: childId),
+        ),
+        throwsStateError,
+      );
+      await expectLater(repo.archiveCategory(parentId), throwsStateError);
+      await repo.archiveCategory(childId);
+      await repo.archiveCategory(parentId);
+      final child = (await repo.getCategoryById(childId))!;
+      expect(child.isActive, isFalse);
+      expect(child.parentId, parentId);
+      expect((await repo.getCategoryById(parentId))!.isActive, isFalse);
+    },
+  );
 }

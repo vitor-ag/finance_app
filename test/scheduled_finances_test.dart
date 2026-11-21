@@ -4,6 +4,7 @@ import 'package:finance_app/features/bills/data/repositories/bill_repository_imp
 import 'package:finance_app/features/bills/domain/entities/bill.dart';
 import 'package:finance_app/features/recurrences/data/repositories/recurrence_repository_impl.dart';
 import 'package:finance_app/features/recurrences/domain/entities/recurrence.dart';
+import 'package:finance_app/features/transactions/data/repositories/transaction_repository_impl.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -44,6 +45,16 @@ void main() {
     expect(bill.paidTransactionId, expense.id);
     expect(expense.type, 'expense');
     expect(expense.amount, 120);
+    final transactions = TransactionRepositoryImpl(db);
+    final payment = await transactions.getTransactionById(expense.id);
+    await expectLater(
+      transactions.updateTransaction(payment!.copyWith(amount: 100)),
+      throwsStateError,
+    );
+    await expectLater(
+      transactions.deleteTransaction(expense.id),
+      throwsStateError,
+    );
     expect((await db.select(db.accounts).getSingle()).currentBalance, -120);
   });
 

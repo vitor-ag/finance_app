@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
+
 import '../../domain/entities/account.dart';
 
 class AccountCard extends StatelessWidget {
   final Account account;
   final VoidCallback? onTap;
+  final VoidCallback? onArchive;
 
   const AccountCard({
     super.key,
     required this.account,
     this.onTap,
+    this.onArchive,
   });
 
   IconData _getAccountIcon(String type) {
@@ -57,7 +60,9 @@ class AccountCard extends StatelessWidget {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+        ),
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -75,33 +80,51 @@ class AccountCard extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
         ),
         subtitle: Text(
-          _formatType(account.type),
+          account.isActive
+              ? _formatType(account.type)
+              : '${_formatType(account.type)} · Arquivada',
           style: TextStyle(
             color: theme.colorScheme.onSurfaceVariant,
             fontSize: 13,
           ),
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.end,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              _formatCurrency(account.currentBalance),
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: isNegative
-                    ? theme.colorScheme.error
-                    : theme.colorScheme.onSurface,
-              ),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  _formatCurrency(account.currentBalance),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: isNegative
+                        ? theme.colorScheme.error
+                        : theme.colorScheme.onSurface,
+                  ),
+                ),
+                Text(
+                  'Saldo atual',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.outline,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              'Saldo atual',
-              style: TextStyle(
-                fontSize: 11,
-                color: theme.colorScheme.outline,
+            if (onArchive != null)
+              PopupMenuButton<String>(
+                tooltip: 'Ações da conta',
+                onSelected: (_) => onArchive!(),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: 'archive',
+                    child: Text('Arquivar conta'),
+                  ),
+                ],
               ),
-            ),
           ],
         ),
       ),
