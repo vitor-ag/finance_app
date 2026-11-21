@@ -8,6 +8,35 @@ import 'package:finance_app/features/notifications/domain/reminder_settings.dart
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('upgrades version 6 while preserving existing account data', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'finance_cards_migration_',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/finance_app.sqlite');
+    final previous = _VersionSixDatabase(NativeDatabase(file));
+    await previous
+        .into(previous.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            name: 'Conta',
+            type: 'cash',
+            currentBalanceCents: const Value(4321),
+          ),
+        );
+    await previous.close();
+    final db = AppDatabase.forTesting(NativeDatabase(file));
+    addTearDown(db.close);
+    expect(
+      (await db.select(db.accounts).getSingle()).currentBalanceCents,
+      4321,
+    );
+    expect(await db.select(db.creditCards).get(), isEmpty);
+    expect(await db.select(db.cardPurchases).get(), isEmpty);
+    expect(await db.select(db.cardInstallments).get(), isEmpty);
+    expect(await db.select(db.cardPayments).get(), isEmpty);
+    expect(await db.customSelect('PRAGMA foreign_key_check').get(), isEmpty);
+  });
   test('upgrades a populated version 1 database and reopens it', () async {
     final directory = await Directory.systemTemp.createTemp(
       'finance_migration_',
@@ -43,7 +72,7 @@ void main() {
     final version = await reopenedDb
         .customSelect('PRAGMA user_version')
         .getSingle();
-    expect(version.read<int>('user_version'), 6);
+    expect(version.read<int>('user_version'), 7);
     expect(
       (await reopenedDb.select(reopenedDb.accounts).getSingle())
           .currentBalanceCents,
@@ -214,6 +243,22 @@ void main() {
   );
 }
 
+class _VersionSixDatabase extends AppDatabase {
+  _VersionSixDatabase(super.executor) : super.forTesting();
+  @override
+  int get schemaVersion => 6;
+  @override
+  List<DatabaseSchemaEntity> get allSchemaEntities => super.allSchemaEntities
+      .where(
+        (entity) =>
+            entity != creditCards &&
+            entity != cardPurchases &&
+            entity != cardPayments &&
+            entity != cardInstallments,
+      )
+      .toList();
+}
+
 // Versions 3 and 4 already used cents. Version 4 added the goals table.
 class _LegacyDatabase extends AppDatabase {
   _LegacyDatabase(super.executor, this.schemaVersion) : super.forTesting();
@@ -225,6 +270,10 @@ class _LegacyDatabase extends AppDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => super.allSchemaEntities
       .where(
         (entity) =>
+            entity != creditCards &&
+            entity != cardPurchases &&
+            entity != cardPayments &&
+            entity != cardInstallments &&
             entity != billReminderSettings &&
             (schemaVersion >= 4 || entity != goals),
       )

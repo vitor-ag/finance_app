@@ -10,6 +10,7 @@ import 'tables/accounts_table.dart';
 import 'tables/bill_reminder_settings_table.dart';
 import 'tables/bills_table.dart';
 import 'tables/categories_table.dart';
+import 'tables/credit_cards_table.dart';
 import 'tables/goals_table.dart';
 import 'tables/recurrences_table.dart';
 import 'tables/transaction_revisions_table.dart';
@@ -27,6 +28,10 @@ part 'database.g.dart';
     TransactionRevisions,
     Goals,
     BillReminderSettings,
+    CreditCards,
+    CardPurchases,
+    CardPayments,
+    CardInstallments,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -35,7 +40,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -106,6 +111,12 @@ class AppDatabase extends _$AppDatabase {
   Future<void> _createNewTables(Migrator migrator, int from) async {
     if (from < 4) await migrator.createTable(goals);
     if (from < 5) await migrator.createTable(billReminderSettings);
+    if (from < 7) {
+      await migrator.createTable(creditCards);
+      await migrator.createTable(cardPurchases);
+      await migrator.createTable(cardPayments);
+      await migrator.createTable(cardInstallments);
+    }
   }
 
   Future<void> _migrateMoney(

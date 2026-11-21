@@ -222,6 +222,16 @@ class TransactionRepositoryImpl implements TransactionRepository {
   }
 
   Future<void> _ensureNotBillPayment(int transactionId) async {
+    final cardPayment =
+        await (db.select(db.cardPayments)
+              ..where((row) => row.transactionId.equals(transactionId))
+              ..limit(1))
+            .getSingleOrNull();
+    if (cardPayment != null) {
+      throw StateError(
+        'Este lançamento está vinculado ao pagamento de uma fatura.',
+      );
+    }
     final bill =
         await (db.select(db.bills)
               ..where((tbl) => tbl.paidTransactionId.equals(transactionId))
