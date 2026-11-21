@@ -14,12 +14,14 @@ String brlInput(int cents) => _decimalText(cents.toString());
 
 String formatBrl(int cents) => 'R\$ ${brlInput(cents)}';
 
+String formatBrlSum(BigInt cents) => 'R\$ ${_decimalText(cents.toString())}';
+
 String formatBrlTotal(Iterable<int> amounts) {
   final sum = amounts.fold(
     BigInt.zero,
     (total, amount) => total + BigInt.from(amount),
   );
-  return 'R\$ ${_decimalText(sum.toString())}';
+  return formatBrlSum(sum);
 }
 
 String _decimalText(String cents) {

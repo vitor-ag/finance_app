@@ -45,6 +45,21 @@ class TransactionRepositoryImpl implements TransactionRepository {
   }
 
   @override
+  Stream<List<Transaction>> watchTransactionsInPeriod(
+    DateTime start,
+    DateTime end,
+  ) {
+    return (db.select(db.transactions)..where(
+          (entry) =>
+              entry.deletedAt.isNull() &
+              entry.date.isBiggerOrEqualValue(start) &
+              entry.date.isSmallerThanValue(end),
+        ))
+        .watch()
+        .map((rows) => rows.map(_mapRow).toList());
+  }
+
+  @override
   Stream<List<Transaction>> watchDeletedTransactions() {
     return (db.select(db.transactions)
           ..where((tbl) => tbl.deletedAt.isNotNull())

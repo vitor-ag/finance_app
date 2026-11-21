@@ -3,6 +3,10 @@ import '../entities/transaction_revision.dart';
 
 abstract class TransactionRepository {
   Stream<List<Transaction>> watchAllTransactions();
+  Stream<List<Transaction>> watchTransactionsInPeriod(
+    DateTime start,
+    DateTime end,
+  );
   Stream<List<Transaction>> watchDeletedTransactions();
   Future<Transaction?> getTransactionById(int id);
   Future<List<TransactionRevision>> listRevisions(int id);

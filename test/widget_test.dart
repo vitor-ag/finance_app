@@ -16,7 +16,77 @@ Future<void> closeTestDatabase(WidgetTester tester, AppDatabase db) async {
   await db.close();
 }
 
+Future<void> openMorePage(WidgetTester tester, String page) async {
+  await tester.tap(find.text('Mais'));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text(page));
+  await tester.pumpAndSettle();
+}
+
 void main() {
+  testWidgets('Início shows monthly totals and refreshes after a quick entry', (tester) async {
+    tester.view.physicalSize = const Size(360, 760);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final accountId = await db.into(db.accounts).insert(
+      AccountsCompanion.insert(name: 'Carteira', type: 'cash'),
+    );
+    final now = DateTime.now();
+    for (final (type, amount, date) in [
+      ('income', 1234, DateTime(now.year, now.month)),
+      ('expense', 200, DateTime(now.year, now.month)),
+      ('income', 1100, DateTime(now.year, now.month, 0, 23, 59)),
+      ('expense', 9999, DateTime(now.year, now.month + 1)),
+    ]) {
+      await db.into(db.transactions).insert(TransactionsCompanion.insert(
+        type: type,
+        amountCents: amount,
+        date: date,
+        accountId: accountId,
+      ));
+    }
+    await tester.pumpWidget(ProviderScope(
+      overrides: [databaseProvider.overrideWithValue(db)],
+      child: const MyApp(),
+    ));
+    await tester.pumpAndSettle();
+    expect(find.text('Saldo atual'), findsOneWidget);
+    expect(find.text('R\$ 12,34'), findsOneWidget);
+    expect(find.text('R\$ 10,34'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Mês anterior'));
+    await tester.pumpAndSettle();
+    expect(find.text('R\$ 11,00'), findsNWidgets(2));
+    expect(find.text('R\$ 12,34'), findsNothing);
+    await tester.tap(find.byTooltip('Próximo mês'));
+    await tester.pumpAndSettle();
+    expect(find.text('R\$ 10,34'), findsOneWidget);
+
+    await tester.tap(find.text('Novo'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextField, 'Valor (R\$)'), '2,50');
+    await tester.tap(find.byType(DropdownButtonFormField<int>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Carteira').last);
+    await tester.pumpAndSettle();
+    final save = find.text('Salvar Lançamento');
+    await tester.ensureVisible(save);
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+    expect(find.text('R\$ 7,84'), findsOneWidget);
+    expect(find.text('R\$ -2,50'), findsOneWidget);
+
+    final bills = find.text('Ver contas a pagar');
+    await tester.scrollUntilVisible(bills, 180);
+    await tester.tap(bills);
+    await tester.pumpAndSettle();
+    expect(find.text('Nenhuma conta a pagar cadastrada'), findsOneWidget);
+    await closeTestDatabase(tester, db);
+  });
+
   testWidgets('AccountsScreen renders empty state', (WidgetTester tester) async {
     final testDb = AppDatabase.forTesting(NativeDatabase.memory());
 
@@ -31,11 +101,14 @@ void main() {
 
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Contas'));
+    await tester.pumpAndSettle();
+
     expect(find.text('Minhas Contas'), findsOneWidget);
     expect(find.text('Nenhuma conta cadastrada'), findsOneWidget);
     expect(find.text('Nova Conta'), findsOneWidget);
 
-    await testDb.close();
+    await closeTestDatabase(tester, testDb);
   });
 
   testWidgets('AccountsScreen can create a new account and reactively list it',
@@ -51,6 +124,9 @@ void main() {
       ),
     );
 
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Contas'));
     await tester.pumpAndSettle();
 
     // Tap on "Nova Conta" FAB
@@ -79,7 +155,7 @@ void main() {
     expect(find.text('Conta Digital'), findsOneWidget);
     expect(find.text('R\$ 150,50'), findsNWidgets(2)); // Card balance + Header total
 
-    await testDb.close();
+    await closeTestDatabase(tester, testDb);
   });
 
   testWidgets('CategoriesScreen can create a new category and list it',
@@ -97,9 +173,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Tap on "Categorias" bottom nav destination
-    await tester.tap(find.text('Categorias'));
-    await tester.pumpAndSettle();
+    await openMorePage(tester, 'Categorias');
 
     expect(find.text('Nenhuma categoria cadastrada'), findsOneWidget);
 
@@ -120,7 +194,7 @@ void main() {
     expect(find.text('Alimentação'), findsOneWidget);
     expect(find.text('Despesa'), findsOneWidget);
 
-    await testDb.close();
+    await closeTestDatabase(tester, testDb);
   });
 
   testWidgets('TransactionsScreen can create a new transaction and list it',
@@ -155,8 +229,7 @@ void main() {
 
     expect(find.text('Nenhum lançamento registrado'), findsOneWidget);
 
-    // Tap "Novo Lançamento" FAB
-    await tester.tap(find.text('Novo Lançamento'));
+    await tester.tap(find.text('Novo'));
     await tester.pumpAndSettle();
 
     // Enter amount
@@ -199,7 +272,7 @@ void main() {
 
     await tester.tap(find.text('Lançamentos'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Novo Lançamento'));
+    await tester.tap(find.text('Novo'));
     await tester.pumpAndSettle();
     await tester.enterText(find.widgetWithText(TextField, 'Valor (R\$)'), '20');
     await tester.tap(find.byType(DropdownButtonFormField<int>).first);
@@ -281,9 +354,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Navigate to "A Pagar" tab.
-    await tester.tap(find.text('A Pagar'));
-    await tester.pumpAndSettle();
+    await openMorePage(tester, 'Contas a pagar');
 
     expect(find.text('Nenhuma conta a pagar cadastrada'), findsOneWidget);
 
@@ -333,7 +404,7 @@ void main() {
     final account = await accountRepo.getAccountById(1);
     expect(account!.currentBalanceCents, 18000);
 
-    await testDb.close();
+    await closeTestDatabase(tester, testDb);
   });
 
   testWidgets('BillsScreen can edit and cancel a pending bill', (tester) async {
@@ -349,8 +420,7 @@ void main() {
       child: const MyApp(),
     ));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('A Pagar'));
-    await tester.pumpAndSettle();
+    await openMorePage(tester, 'Contas a pagar');
 
     await tester.tap(find.byTooltip('Ações da conta a pagar'));
     await tester.pumpAndSettle();
@@ -400,9 +470,7 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    // Navigate to "Recorrências" tab.
-    await tester.tap(find.text('Recorrências'));
-    await tester.pumpAndSettle();
+    await openMorePage(tester, 'Recorrências');
 
     expect(find.text('Nenhuma recorrência cadastrada'), findsOneWidget);
 
@@ -442,7 +510,9 @@ void main() {
     final account = await accountRepo.getAccountById(1);
     expect(account!.currentBalanceCents, 100000);
 
-    // Confirm the generated transaction also shows up in Lançamentos.
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
     await tester.tap(find.text('Lançamentos'));
     await tester.pumpAndSettle();
 

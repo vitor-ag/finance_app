@@ -8,6 +8,21 @@ import '../../../categories/presentation/providers/category_providers.dart';
 import '../../domain/entities/transaction.dart';
 import '../providers/transaction_providers.dart';
 
+Future<void> showTransactionForm(
+  BuildContext context, {
+  Transaction? source,
+  bool duplicate = false,
+}) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => TransactionForm(source: source, duplicate: duplicate),
+  );
+}
+
 class TransactionForm extends ConsumerStatefulWidget {
   const TransactionForm({super.key, this.source, this.duplicate = false});
 

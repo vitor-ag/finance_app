@@ -24,17 +24,6 @@ class TransactionsScreen extends ConsumerStatefulWidget {
 class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
   bool _showTrash = false;
 
-  Future<void> _openForm({Transaction? source, bool duplicate = false}) {
-    return showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (_) => TransactionForm(source: source, duplicate: duplicate),
-    );
-  }
-
   Future<void> _showActions(
     Transaction entry, {
     required bool isBillPayment,
@@ -82,9 +71,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     if (!mounted || action == null) return;
     switch (action) {
       case _EntryAction.edit:
-        await _openForm(source: entry);
+        await showTransactionForm(context, source: entry);
       case _EntryAction.duplicate:
-        await _openForm(source: entry, duplicate: true);
+        await showTransactionForm(context, source: entry, duplicate: true);
       case _EntryAction.delete:
         await _changeTrashStatus(entry, restore: false);
       case _EntryAction.revisions:
@@ -268,13 +257,6 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           );
         },
       ),
-      floatingActionButton: _showTrash
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _openForm,
-              icon: const Icon(Icons.add),
-              label: const Text('Novo Lançamento'),
-            ),
     );
   }
 }

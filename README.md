@@ -6,7 +6,7 @@ Aplicativo pessoal de finanças com armazenamento local e foco inicial em Androi
 
 O projeto usa Flutter, Dart, Riverpod e Drift sobre SQLite. Cada módulo em `lib/features/` tem camadas de domínio, dados e apresentação. O banco fica em `lib/data/local/` e grava o arquivo `finance_app.sqlite` no diretório de documentos do aplicativo.
 
-A navegação atual abre em **Contas** e inclui **Lançamentos**, **A Pagar**, **Recorrências** e **Categorias**. O tema claro ou escuro segue a preferência do sistema.
+A navegação abre em **Início** e inclui **Lançamentos**, o atalho central **Novo**, **Contas** e **Mais**. Contas a pagar, recorrências e categorias ficam em **Mais**. O tema claro ou escuro segue a preferência do sistema.
 
 ## O que já está no código
 
@@ -17,9 +17,12 @@ A navegação atual abre em **Contas** e inclui **Lançamentos**, **A Pagar**, *
 | Lançamentos (RF03–RF05, RF22) | Entradas, saídas e transferências com data selecionável. Entradas podem ter uma fonte de receita. O histórico permite editar, duplicar, mover para a lixeira e restaurar, com registro das revisões. Alterações de saldo são atômicas. Pagamentos vinculados a contas a pagar ficam protegidos contra alterações no histórico. | Tags e filtros avançados ficam na v1.1. |
 | Contas a pagar (RF09) | Cadastro, edição e cancelamento de contas pendentes, indicação de atraso e pagamento com uma única despesa vinculada. Novas séries mensais geram a próxima conta a partir do vencimento e podem ser encerradas preservando as contas já geradas. | Lembretes de vencimento ficam no módulo de notificações. |
 | Recorrências (RF10) | Entradas e saídas semanais, mensais ou anuais com data final e limite de ocorrências opcionais. Geração ao salvar, abrir ou retomar o app, com pausa, retomada, cancelamento e proteção contra duplicidade. | Notificações de vencimento ficam no módulo correspondente. |
+| Dashboard (RF14) | Saldo atual das contas ativas, entradas, saídas e resultado para o mês selecionado, além de valores e lista de contas vencidas e a vencer. | O patrimônio investido será integrado quando o módulo de investimentos estiver disponível. |
 | Tema (RF21) | Temas claro e escuro conforme a configuração do aparelho. | Incluir um seletor manual caso a alternância deva ser feita dentro do app. |
 
-Para fechar o MVP, também faltam o dashboard básico, metas, backup e restauração local e notificações essenciais. A navegação proposta na especificação prevê uma tela **Início** e um atalho central para novo lançamento. Cartões, parcelamento, faturas, investimentos, tags e filtros avançados estão previstos na v1.1. Orçamento, análises, exportação CSV/JSON e PIN/biometria estão previstos na v1.2.
+As movimentações mensais incluem entradas e saídas pagas no mês selecionado. Transferências, lançamentos pendentes, cancelados e excluídos ficam fora do resultado. O saldo atual e as contas pendentes refletem a situação de hoje, mesmo ao consultar meses anteriores.
+
+Para fechar o MVP, faltam metas, backup e restauração local e notificações essenciais. Cartões, parcelamento, faturas, investimentos, tags e filtros avançados estão previstos na v1.1. Orçamento, análises, exportação CSV/JSON e PIN/biometria estão previstos na v1.2.
 
 ## Validação do estado atual
 
@@ -29,8 +32,8 @@ A versão 3 usa centavos inteiros para saldos e valores. A migração mantém os
 
 ## Prioridade para retomar o desenvolvimento
 
-1. **Construir o dashboard.** Usar o saldo das contas ativas e os lançamentos do período para exibir receitas, despesas, resultado e pendências.
-2. **Concluir o MVP.** Avançar para metas, backup e restauração e notificações locais. Validar o APK em Android com instalação nova, atualização e uso offline.
+1. **Validar o MVP em uso.** Verificar o APK em Android com instalação nova, atualização e uso offline.
+2. **Concluir o MVP.** Avançar para metas, backup e restauração e notificações locais.
 
 ## Comandos de desenvolvimento
 
