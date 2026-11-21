@@ -7,6 +7,8 @@ import 'package:finance_app/main.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:finance_app/features/categories/data/repositories/category_repository_impl.dart';
+import 'package:finance_app/features/categories/domain/entities/category.dart';
 
 void main() {
   testWidgets('AccountsScreen renders empty state', (WidgetTester tester) async {
@@ -169,6 +171,169 @@ void main() {
 
     expect(find.text('Nubank'), findsOneWidget);
     expect(find.text('-R\$ 50,00'), findsOneWidget);
+
+    await testDb.close();
+  });
+
+  testWidgets('BillsScreen can create a bill, mark it as paid and update balance',
+      (WidgetTester tester) async {
+    final testDb = AppDatabase.forTesting(NativeDatabase.memory());
+
+    final accountRepo = AccountRepositoryImpl(testDb);
+    await accountRepo.createAccount(
+      Account(
+        name: 'Nubank',
+        type: 'digital',
+        initialBalance: 300,
+        currentBalance: 300,
+        createdAt: DateTime.now(),
+      ),
+    );
+
+    final categoryRepo = CategoryRepositoryImpl(testDb);
+    await categoryRepo.createCategory(
+      const Category(name: 'Moradia', type: 'expense'),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(testDb),
+        ],
+        child: const MyApp(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Navigate to "A Pagar" tab.
+    await tester.tap(find.text('A Pagar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nenhuma conta a pagar cadastrada'), findsOneWidget);
+
+    // Open the "Nova Conta" sheet.
+    await tester.tap(find.text('Nova Conta'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Nome (ex: Aluguel, Internet)'),
+      'Aluguel',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Valor (R\$)'),
+      '120.00',
+    );
+
+    // Select the category.
+    await tester.tap(find.byType(DropdownButtonFormField<int>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Moradia').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Salvar Conta'));
+    await tester.pumpAndSettle();
+
+    // Bill was created with a due date in the future -> pending.
+    expect(find.text('Aluguel'), findsOneWidget);
+    expect(find.text('Pendente'), findsOneWidget);
+
+    // Tap the tile to mark it as paid.
+    await tester.tap(find.text('Aluguel'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Marcar como paga'), findsOneWidget);
+
+    // Select the payment account.
+    await tester.tap(find.byType(DropdownButtonFormField<int>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nubank').last);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Confirmar'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Paga'), findsOneWidget);
+
+    final account = await accountRepo.getAccountById(1);
+    expect(account!.currentBalance, 180);
+
+    await testDb.close();
+  });
+
+  testWidgets('RecurrencesScreen can create a recurrence and generate the first occurrence immediately',
+      (WidgetTester tester) async {
+    final testDb = AppDatabase.forTesting(NativeDatabase.memory());
+
+    final accountRepo = AccountRepositoryImpl(testDb);
+    await accountRepo.createAccount(
+      Account(
+        name: 'Nubank',
+        type: 'digital',
+        initialBalance: 0,
+        currentBalance: 0,
+        createdAt: DateTime.now(),
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          databaseProvider.overrideWithValue(testDb),
+        ],
+        child: const MyApp(),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Navigate to "Recorrências" tab.
+    await tester.tap(find.text('Recorrências'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nenhuma recorrência cadastrada'), findsOneWidget);
+
+    // Open the "Nova Recorrência" sheet.
+    await tester.tap(find.text('Nova Recorrência'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Nome (ex: Salário, Aluguel)'),
+      'Salário',
+    );
+
+    // Switch to "Entrada".
+    await tester.tap(find.text('Entrada'));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Valor (R\$)'),
+      '1000.00',
+    );
+
+    // Select the account.
+    await tester.tap(find.byType(DropdownButtonFormField<int>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Nubank').last);
+    await tester.pumpAndSettle();
+
+    // Start date defaults to today, so the first occurrence is
+    // generated right after saving (createRecurrence + generateDueOccurrences).
+    final saveRecurrence = find.text('Salvar Recorrência');
+    await tester.ensureVisible(saveRecurrence);
+    await tester.tap(saveRecurrence);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Salário'), findsOneWidget);
+
+    final account = await accountRepo.getAccountById(1);
+    expect(account!.currentBalance, 1000);
+
+    // Confirm the generated transaction also shows up in Lançamentos.
+    await tester.tap(find.text('Lançamentos'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('+R\$ 1000,00'), findsOneWidget);
 
     await testDb.close();
   });

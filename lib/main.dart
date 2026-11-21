@@ -3,14 +3,30 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'features/accounts/presentation/screens/accounts_screen.dart';
 import 'features/bills/presentation/screens/bills_screen.dart';
 import 'features/categories/presentation/screens/categories_screen.dart';
+import 'features/recurrences/presentation/providers/recurrence_providers.dart';
+import 'features/recurrences/presentation/screens/recurrences_screen.dart';
 import 'features/transactions/presentation/screens/transactions_screen.dart';
 
 void main() {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
+
+  @override
+  ConsumerState<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends ConsumerState<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    // Catch up on any recurrence occurrence due since the app was last opened.
+    Future.microtask(
+      () => ref.read(recurrenceRepositoryProvider).generateDueOccurrences(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,6 +63,7 @@ class _RootScreenState extends State<RootScreen> {
     AccountsScreen(),
     TransactionsScreen(),
     BillsScreen(),
+    RecurrencesScreen(),
     CategoriesScreen(),
   ];
 
@@ -72,6 +89,11 @@ class _RootScreenState extends State<RootScreen> {
             icon: Icon(Icons.receipt_long_outlined),
             selectedIcon: Icon(Icons.receipt_long),
             label: 'A Pagar',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.autorenew),
+            selectedIcon: Icon(Icons.autorenew),
+            label: 'Recorrências',
           ),
           NavigationDestination(
             icon: Icon(Icons.category_outlined),

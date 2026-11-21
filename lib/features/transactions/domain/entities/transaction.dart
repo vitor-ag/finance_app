@@ -9,6 +9,7 @@ class Transaction {
   final int? categoryId; // not used for transfers
   final String? description;
   final String status; // 'pending', 'paid', 'cancelled'
+  final int? recurrenceId;
   final DateTime createdAt;
   final DateTime? deletedAt;
 
@@ -22,6 +23,7 @@ class Transaction {
     this.categoryId,
     this.description,
     this.status = 'paid',
+    this.recurrenceId,
     required this.createdAt,
     this.deletedAt,
   });
@@ -36,6 +38,7 @@ class Transaction {
     int? categoryId,
     String? description,
     String? status,
+    int? recurrenceId,
     DateTime? createdAt,
     DateTime? deletedAt,
   }) {
@@ -49,6 +52,7 @@ class Transaction {
       categoryId: categoryId ?? this.categoryId,
       description: description ?? this.description,
       status: status ?? this.status,
+      recurrenceId: recurrenceId ?? this.recurrenceId,
       createdAt: createdAt ?? this.createdAt,
       deletedAt: deletedAt ?? this.deletedAt,
     );

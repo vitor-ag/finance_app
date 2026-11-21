@@ -19,6 +19,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
       categoryId: row.categoryId,
       description: row.description,
       status: row.status,
+      recurrenceId: row.recurrenceId,
       createdAt: row.createdAt,
       deletedAt: row.deletedAt,
     );
@@ -54,6 +55,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
               categoryId: Value(transaction.categoryId),
               description: Value(transaction.description),
               status: Value(transaction.status),
+              recurrenceId: Value(transaction.recurrenceId),
             ),
           );
 

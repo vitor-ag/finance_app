@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../accounts/domain/entities/account.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
 import '../../../categories/presentation/providers/category_providers.dart';
 import '../../domain/entities/bill.dart';
@@ -163,8 +164,12 @@ class BillsScreen extends ConsumerWidget {
     );
   }
 
-  void _showMarkAsPaidDialog(BuildContext context, WidgetRef ref, Bill bill) {
-    final accounts = ref.read(allAccountsProvider).valueOrNull ?? [];
+  void _showMarkAsPaidDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Bill bill,
+    List<Account> accounts,
+  ) {
     int? selectedAccountId = accounts.isNotEmpty ? accounts.first.id : null;
 
     showDialog(
@@ -214,6 +219,7 @@ class BillsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final billsAsync = ref.watch(allBillsProvider);
+    final accounts = ref.watch(allAccountsProvider).valueOrNull;
     final expenseCategories =
         ref.watch(allCategoriesProvider(type: 'expense')).valueOrNull ?? [];
 
@@ -257,8 +263,9 @@ class BillsScreen extends ConsumerWidget {
                 child: BillTile(
                   bill: bill,
                   categoryName: categoryName(bill.categoryId),
-                  onMarkAsPaid: () =>
-                      _showMarkAsPaidDialog(context, ref, bill),
+                  onMarkAsPaid: accounts == null
+                      ? null
+                      : () => _showMarkAsPaidDialog(context, ref, bill, accounts),
                 ),
               );
             },

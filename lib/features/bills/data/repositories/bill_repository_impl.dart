@@ -1,12 +1,16 @@
 import 'package:drift/drift.dart';
+
 import '../../../../data/local/database.dart';
+import '../../../transactions/data/repositories/transaction_repository_impl.dart';
+import '../../../transactions/domain/entities/transaction.dart';
 import '../../domain/entities/bill.dart';
 import '../../domain/repositories/bill_repository.dart';
 
 class BillRepositoryImpl implements BillRepository {
   final AppDatabase db;
+  final TransactionRepositoryImpl _transactions;
 
-  BillRepositoryImpl(this.db);
+  BillRepositoryImpl(this.db) : _transactions = TransactionRepositoryImpl(db);
 
   Bill _mapRow(BillRow row) {
     return Bill(
@@ -58,28 +62,16 @@ class BillRepositoryImpl implements BillRepository {
       final bill = await getBillById(billId);
       if (bill == null || bill.status != 'pending') return;
 
-      // Create the actual expense transaction (this also updates the
-      // account balance, via TransactionRepository's own balance logic).
-      final transactionId = await db.into(db.transactions).insert(
-            TransactionsCompanion.insert(
-              type: 'expense',
-              amount: bill.amount,
-              date: DateTime.now(),
-              accountId: paymentAccountId,
-              categoryId: Value(bill.categoryId),
-              description: Value('Pagamento: ${bill.name}'),
-            ),
-          );
-
-      final account = await (db.select(db.accounts)
-            ..where((tbl) => tbl.id.equals(paymentAccountId)))
-          .getSingle();
-
-      await (db.update(db.accounts)
-            ..where((tbl) => tbl.id.equals(paymentAccountId)))
-          .write(
-        AccountsCompanion(
-          currentBalance: Value(account.currentBalance - bill.amount),
+      final now = DateTime.now();
+      final transactionId = await _transactions.createTransaction(
+        Transaction(
+          type: 'expense',
+          amount: bill.amount,
+          date: now,
+          accountId: paymentAccountId,
+          categoryId: bill.categoryId,
+          description: 'Pagamento: ${bill.name}',
+          createdAt: now,
         ),
       );
 
@@ -95,7 +87,8 @@ class BillRepositoryImpl implements BillRepository {
 
   @override
   Future<void> cancelBill(int id) {
-    return (db.update(db.bills)..where((tbl) => tbl.id.equals(id)))
+    return (db.update(db.bills)
+          ..where((tbl) => tbl.id.equals(id) & tbl.status.equals('pending')))
         .write(const BillsCompanion(status: Value('cancelled')));
   }
 }
