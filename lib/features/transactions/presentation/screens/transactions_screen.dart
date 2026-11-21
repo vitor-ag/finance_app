@@ -38,9 +38,13 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
         child: Wrap(
           children: [
             if (isBillPayment)
-              const ListTile(
-                leading: Icon(Icons.receipt_long),
-                title: Text('Pagamento vinculado a uma conta a pagar'),
+              ListTile(
+                leading: const Icon(Icons.receipt_long),
+                title: Text(
+                  entry.type == 'card_payment'
+                      ? 'Pagamento de fatura'
+                      : 'Pagamento vinculado a uma conta a pagar',
+                ),
               ),
             if (!isBillPayment)
               ListTile(
@@ -48,11 +52,12 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 title: const Text('Editar'),
                 onTap: () => Navigator.pop(context, _EntryAction.edit),
               ),
-            ListTile(
-              leading: const Icon(Icons.copy_outlined),
-              title: const Text('Duplicar'),
-              onTap: () => Navigator.pop(context, _EntryAction.duplicate),
-            ),
+            if (entry.type != 'card_payment')
+              ListTile(
+                leading: const Icon(Icons.copy_outlined),
+                title: const Text('Duplicar'),
+                onTap: () => Navigator.pop(context, _EntryAction.duplicate),
+              ),
             ListTile(
               leading: const Icon(Icons.history),
               title: const Text('Histórico de alterações'),
@@ -249,7 +254,9 @@ class _TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                       accountNames[entry.destinationAccountId],
                   onTap: () => _showActions(
                     entry,
-                    isBillPayment: billPayments.contains(entry.id),
+                    isBillPayment:
+                        billPayments.contains(entry.id) ||
+                        entry.type == 'card_payment',
                   ),
                 ),
               );

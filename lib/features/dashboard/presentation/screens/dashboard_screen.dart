@@ -5,6 +5,7 @@ import '../../../../core/calendar.dart';
 import '../../../../core/money.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
 import '../../../bills/presentation/providers/bill_providers.dart';
+import '../../../credit_cards/presentation/credit_card_providers.dart';
 import '../../domain/dashboard_overview.dart';
 import '../providers/dashboard_providers.dart';
 
@@ -61,18 +62,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final accounts = ref.watch(allAccountsProvider);
     final bills = ref.watch(allBillsProvider);
     final transactions = ref.watch(dashboardTransactionsProvider(month));
+    final purchases = ref.watch(cardPurchasesProvider);
     final colors = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     final hasError =
-        accounts.hasError || bills.hasError || transactions.hasError;
+        accounts.hasError ||
+        bills.hasError ||
+        transactions.hasError ||
+        purchases.hasError;
     final isReady =
-        accounts.hasValue && bills.hasValue && transactions.hasValue;
+        accounts.hasValue &&
+        bills.hasValue &&
+        transactions.hasValue &&
+        purchases.hasValue;
     final overview = isReady
         ? DashboardOverview.calculate(
             accounts: accounts.requireValue,
             transactions: transactions.requireValue,
             bills: bills.requireValue,
             today: now,
+            cardPurchaseAmounts: purchases.requireValue
+                .where(
+                  (purchase) =>
+                      purchase.purchaseDate.year == month.year &&
+                      purchase.purchaseDate.month == month.month,
+                )
+                .map((purchase) => purchase.amountCents),
           )
         : null;
 
@@ -150,6 +165,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     ref.invalidate(allAccountsProvider);
                     ref.invalidate(allBillsProvider);
                     ref.invalidate(dashboardTransactionsProvider(month));
+                    ref.invalidate(cardPurchasesProvider);
                   },
                   child: const Text('Tentar novamente'),
                 ),

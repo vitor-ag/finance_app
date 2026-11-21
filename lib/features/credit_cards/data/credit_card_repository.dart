@@ -11,6 +11,74 @@ class CreditCardRepository {
 
   Stream<List<CreditCardRow>> watchCards() => db.select(db.creditCards).watch();
 
+  Stream<List<CardPurchaseRow>> watchPurchases() =>
+      db.select(db.cardPurchases).watch();
+  Stream<List<CardInstallmentRow>> watchInstallments() =>
+      db.select(db.cardInstallments).watch();
+
+  Future<void> updateCard(CreditCardRow card) async {
+    final name = card.name.trim();
+    if (name.isEmpty ||
+        name.length > 80 ||
+        card.closingDay < 1 ||
+        card.closingDay > 31 ||
+        card.dueDay < 1 ||
+        card.dueDay > 31) {
+      throw StateError('Informe os dados do cartão.');
+    }
+    validatePositiveCents(card.limitCents);
+    await db.transaction(() async {
+      final previous = await (db.select(
+        db.creditCards,
+      )..where((row) => row.id.equals(card.id))).getSingle();
+      if (previous.closingDay != card.closingDay ||
+          previous.dueDay != card.dueDay) {
+        final installments = db.cardInstallments;
+        final purchases = db.cardPurchases;
+        final pending =
+            await (db.select(installments).join([
+                    innerJoin(
+                      purchases,
+                      purchases.id.equalsExp(installments.purchaseId),
+                    ),
+                  ])
+                  ..where(
+                    purchases.cardId.equals(card.id) &
+                        installments.paymentId.isNull(),
+                  )
+                  ..limit(1))
+                .get();
+        if (pending.isNotEmpty) {
+          throw StateError(
+            'Quite as faturas pendentes antes de alterar os dias.',
+          );
+        }
+      }
+      await (db.update(
+        db.creditCards,
+      )..where((row) => row.id.equals(card.id))).write(
+        CreditCardsCompanion(
+          name: Value(name),
+          limitCents: Value(card.limitCents),
+          closingDay: Value(card.closingDay),
+          dueDay: Value(card.dueDay),
+        ),
+      );
+    });
+  }
+
+  Future<void> archiveCard(int id) async {
+    await (db.update(db.creditCards)..where((row) => row.id.equals(id))).write(
+      const CreditCardsCompanion(isActive: Value(false)),
+    );
+  }
+
+  Future<void> reactivateCard(int id) async {
+    await (db.update(db.creditCards)..where((row) => row.id.equals(id))).write(
+      const CreditCardsCompanion(isActive: Value(true)),
+    );
+  }
+
   Future<int> createCard({
     required String name,
     required int limitCents,
@@ -50,11 +118,13 @@ class CreditCardRepository {
     final card = await (db.select(
       db.creditCards,
     )..where((c) => c.id.equals(cardId))).getSingleOrNull();
-    if (card == null || !card.isActive)
+    if (card == null || !card.isActive) {
       throw StateError('Selecione um cartão ativo.');
+    }
     final name = description.trim();
-    if (name.isEmpty || name.length > 100)
+    if (name.isEmpty || name.length > 100) {
       throw StateError('Informe a descrição da compra.');
+    }
     if (categoryId != null) {
       final category = await (db.select(
         db.categories,
@@ -141,8 +211,9 @@ class CreditCardRepository {
     final account = await (db.select(
       db.accounts,
     )..where((a) => a.id.equals(accountId))).getSingleOrNull();
-    if (account == null || !account.isActive)
+    if (account == null || !account.isActive) {
       throw StateError('Selecione uma conta ativa.');
+    }
     final installments = db.cardInstallments;
     final purchases = db.cardPurchases;
     final query =
@@ -156,8 +227,9 @@ class CreditCardRepository {
     final rows = (await query.get())
         .map((row) => row.readTable(installments))
         .toList();
-    if (rows.isEmpty)
+    if (rows.isEmpty) {
       throw StateError('Esta fatura não possui parcelas pendentes.');
+    }
     final amount = rows.fold<int>(0, (sum, row) => sum + row.amountCents);
     validatePositiveCents(amount);
     final balance = account.currentBalanceCents - amount;

@@ -19,6 +19,7 @@ class DashboardOverview {
     required Iterable<Transaction> transactions,
     required Iterable<Bill> bills,
     required DateTime today,
+    Iterable<int> cardPurchaseAmounts = const [],
   }) {
     final activeBalance = accounts
         .where((account) => account.isActive)
@@ -27,7 +28,10 @@ class DashboardOverview {
           (sum, account) => sum + BigInt.from(account.currentBalanceCents),
         );
     var income = BigInt.zero;
-    var expense = BigInt.zero;
+    var expense = cardPurchaseAmounts.fold(
+      BigInt.zero,
+      (total, cents) => total + BigInt.from(cents),
+    );
     for (final entry in transactions) {
       if (entry.status != 'paid' || entry.deletedAt != null) continue;
       switch (entry.type) {

@@ -53,6 +53,7 @@ void main() {
       transactions: [
         entry('income', 2005),
         entry('expense', 751),
+        entry('card_payment', 500),
         entry('transfer', 30000),
         entry('income', 999, status: 'pending'),
         entry('expense', 888, status: 'cancelled'),
@@ -66,12 +67,13 @@ void main() {
         bill('Cancelada', 20, 6000, status: 'cancelled'),
       ],
       today: today,
+      cardPurchaseAmounts: [500],
     );
 
     expect(overview.activeBalanceCents, BigInt.from(openingCents));
     expect(overview.incomeCents, BigInt.from(2005));
-    expect(overview.expenseCents, BigInt.from(751));
-    expect(overview.resultCents, BigInt.from(1254));
+    expect(overview.expenseCents, BigInt.from(1251));
+    expect(overview.resultCents, BigInt.from(754));
     expect(overview.pendingBills.map((bill) => bill.name), [
       'Telefone',
       'Energia',

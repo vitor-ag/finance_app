@@ -27,6 +27,12 @@ void main() {
     );
     final installments = await db.select(db.cardInstallments).get();
     expect(installments.map((i) => i.amountCents), [3334, 3333, 3333]);
+    final card = await db.select(db.creditCards).getSingle();
+    await expectLater(
+      repo.updateCard(card.copyWith(dueDay: 15)),
+      throwsStateError,
+    );
+    expect((await db.select(db.creditCards).getSingle()).dueDay, 10);
     await repo.payStatement(
       cardId: cardId,
       closingDate: DateTime(2026, 1, 20),

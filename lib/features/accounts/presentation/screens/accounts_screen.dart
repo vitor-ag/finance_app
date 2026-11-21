@@ -5,6 +5,7 @@ import '../../../../core/money.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/widgets/record_actions.dart';
+import '../../../credit_cards/presentation/credit_cards_screen.dart';
 import '../../domain/entities/account.dart';
 import '../providers/account_providers.dart';
 import '../widgets/account_card.dart';
@@ -201,6 +202,18 @@ class AccountsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
+        actions: [
+          IconButton(
+            tooltip: 'Cartões de crédito',
+            icon: const Icon(Icons.credit_card),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute<void>(
+                builder: (_) => const CreditCardsScreen(),
+              ),
+            ),
+          ),
+        ],
         title: const Text(
           'Minhas Contas',
           style: TextStyle(fontWeight: FontWeight.bold),
