@@ -18,6 +18,7 @@ import '../../../forecast/domain/cash_forecast.dart';
 import '../../../forecast/presentation/cash_event_tile.dart';
 import '../../../forecast/presentation/cash_forecast_provider.dart';
 import '../../../investments/presentation/investment_providers.dart';
+import '../../../goals/presentation/widgets/goal_cash_card.dart';
 import '../../../reports/category_chart.dart';
 import '../../../reports/finance_summary.dart';
 import '../../../transactions/presentation/providers/transaction_providers.dart';
@@ -32,6 +33,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
     required this.onOpenRecurrences,
     required this.onOpenForecast,
     required this.onOpenInvestments,
+    required this.onOpenSalary,
     required this.onOpenCategory,
     required this.onSettings,
     required this.onNew,
@@ -45,6 +47,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
       onOpenRecurrences,
       onOpenForecast,
       onOpenInvestments,
+      onOpenSalary,
       onSettings,
       onReports,
       onPlanning,
@@ -167,6 +170,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           children: [
             for (final (label, icon, open) in [
               ('Previsão', Symbols.timeline_rounded, widget.onOpenForecast),
+              ('Salário', Symbols.payments_rounded, widget.onOpenSalary),
               ('Contas a pagar', Symbols.event_rounded, widget.onOpenBills),
               ('Cartões', Symbols.credit_card_rounded, widget.onOpenCards),
               (
@@ -223,6 +227,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
           ),
         ],
+        const GoalCashCard(),
         if (history.hasValue && !failed) ...[
           const SizedBox(height: 16),
           AppSurface(

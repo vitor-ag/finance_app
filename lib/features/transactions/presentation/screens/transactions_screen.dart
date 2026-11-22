@@ -20,6 +20,8 @@ import '../../../categories/domain/entities/category.dart';
 import '../../../categories/presentation/providers/category_providers.dart';
 import '../../../credit_cards/presentation/credit_card_providers.dart';
 import '../../../credit_cards/presentation/credit_cards_screen.dart';
+import '../../../salary/salary_screen.dart';
+import '../../../salary/salary_payment.dart';
 import '../../../reports/finance_summary.dart';
 import '../../domain/entities/transaction.dart';
 import '../../domain/entities/transaction_revision.dart';
@@ -145,6 +147,11 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     });
   }
 
+  Future<void> _editEntry(Transaction entry) =>
+      entry.incomeSource == salaryIncomeSource
+      ? showSalaryPaymentForm(context, entry: entry)
+      : showTransactionForm(context, source: entry);
+
   Future<void> _showActions(
     Transaction entry, {
     required bool isBillPayment,
@@ -175,7 +182,9 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 title: const Text('Editar'),
                 onTap: () => Navigator.pop(context, _EntryAction.edit),
               ),
-            if (entry.type != 'card_payment' && !entry.isInvestmentMovement)
+            if (entry.type != 'card_payment' &&
+                !entry.isInvestmentMovement &&
+                entry.incomeSource != salaryIncomeSource)
               ListTile(
                 leading: const Icon(Symbols.content_copy_rounded),
                 title: const Text('Duplicar'),
@@ -199,7 +208,7 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     if (!mounted || action == null) return;
     switch (action) {
       case _EntryAction.edit:
-        await showTransactionForm(context, source: entry);
+        await _editEntry(entry);
       case _EntryAction.duplicate:
         await showTransactionForm(context, source: entry, duplicate: true);
       case _EntryAction.delete:
@@ -518,11 +527,12 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
           else ...[
             if (!linked)
               FilledButton(
-                onPressed: () =>
-                    run(() => showTransactionForm(context, source: item)),
+                onPressed: () => run(() => _editEntry(item)),
                 child: const Text('Editar'),
               ),
-            if (item.type != 'card_payment' && !item.isInvestmentMovement)
+            if (item.type != 'card_payment' &&
+                !item.isInvestmentMovement &&
+                item.incomeSource != salaryIncomeSource)
               TextButton(
                 onPressed: () => run(
                   () => showTransactionForm(
@@ -1012,7 +1022,10 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                                               isBillPayment: linked(item),
                                             ),
                                     );
-                              if (!table && !_showTrash && !linked(item)) {
+                              if (!table &&
+                                  !_showTrash &&
+                                  !linked(item) &&
+                                  item.incomeSource != salaryIncomeSource) {
                                 row = Dismissible(
                                   key: ValueKey('gesto-${item.id}'),
                                   background: const _SwipeBackground(

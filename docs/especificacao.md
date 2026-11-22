@@ -78,6 +78,8 @@ O diferencial central é preservar a **privacidade por padrão**, oferecer **fun
 | RF22 | Editar, excluir (lógico) e duplicar lançamentos, com histórico/lixeira |
 | RF23 | Projetar o saldo de 30 dias a partir das movimentações previstas, no total e por conta ativa |
 | RF24 | Registrar manualmente o valor bruto da posição e o líquido resgatável, acompanhar a evolução mensal e oferecer lembrete local de revisão |
+| RF25 | Estimar a economia mensal das metas e o limite de gasto considerando as reservas vinculadas e a previsão de caixa |
+| RF26 | Registrar parcelas fixas ou avulsas de salário com bruto, variável e descontos, projetando o líquido até confirmar o crédito |
 
 ## 5. Requisitos Não Funcionais
 
@@ -276,3 +278,9 @@ Contas/carteiras · Categorias · Entradas · Saídas · Transferências · Dash
 - A atualização da posição usa o extrato como referência. Registra o valor bruto e o valor líquido que poderia ser resgatado naquela data. O saldo disponível e a previsão de caixa usam as contas ativas do dia a dia. Contas cadastradas anteriormente como tipo Investimentos aparecem separadas na carteira e compõem o patrimônio investido.
 - O relatório mensal por posição ou por carteira mostra abertura e fechamento, posições iniciais registradas, aportes, resgates brutos, créditos líquidos e variação registrada. O resultado líquido desconta a diferença entre o valor bruto e o crédito efetivo de cada resgate. As datas seguem a ordem do histórico de cada posição.
 - No Android, o lembrete optativo é agendado localmente para o dia 1 de cada mês às 9h. O usuário informa os valores após consultar o extrato. Posições com saldo que ainda aguardam atualização no mês aparecem destacadas na carteira.
+
+## 21. Planejamento das metas e salário
+
+- O plano divide o valor a guardar entre os meses até a data-alvo e abate o valor líquido registrado no mês. Metas vinculadas a contas disponíveis reduzem o saldo livre e reservam os aportes planejados que caem dentro da previsão de 30 dias. Reservar dinheiro é uma destinação interna do saldo.
+- No Android, o aviso optativo de economia é reconciliado ao abrir o app e ao atualizar as metas. O app agenda um aviso quando ainda há uma contribuição pendente, perto do dia 25 ou do prazo mais próximo, e cancela o aviso quando o valor do mês é atingido.
+- Cada parcela de salário tem sua própria conta, data e composição. O líquido é o bruto mais o variável menos os descontos informados. Uma parcela fixa pode se repetir mensalmente. O usuário registra o variável na parcela que recebeu ou em um lançamento avulso. Receita prevista entra no caixa efetivo depois da confirmação do recebimento.

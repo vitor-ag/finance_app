@@ -11,6 +11,7 @@ import '../../../core/design/app_theme.dart';
 import '../../../core/design/components.dart';
 import '../../../core/money.dart';
 import '../domain/cash_forecast.dart';
+import '../../goals/presentation/widgets/goal_cash_card.dart';
 import 'cash_event_tile.dart';
 import 'cash_forecast_provider.dart';
 
@@ -84,6 +85,7 @@ class _CashForecastScreenState extends ConsumerState<CashForecastScreen> {
                       : 'Exibe movimentações vinculadas a esta conta. Faturas e contas sem vínculo aparecem no total geral.',
                   style: theme.textTheme.bodySmall,
                 ),
+                GoalCashCard(accountId: account),
                 const SizedBox(height: 16),
                 AppSurface(
                   child: Column(

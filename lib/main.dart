@@ -29,6 +29,8 @@ import 'features/credit_cards/presentation/credit_cards_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'features/forecast/presentation/cash_forecast_screen.dart';
 import 'features/investments/presentation/investments_screen.dart';
+import 'features/salary/salary_screen.dart';
+import 'features/goals/presentation/widgets/goal_review_switch.dart';
 import 'features/notifications/data/android_reminder_notifications.dart';
 import 'features/notifications/data/planning_reminders.dart';
 import 'features/notifications/data/reminder_settings_store.dart';
@@ -129,6 +131,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   Future<void> _resume() async {
     if (!mounted || _foreground) return;
     _foreground = true;
+    ref.invalidate(goalReviewSyncProvider);
     if (_preferences.isPersistent) {
       unawaited(
         ref.read(localBackupProvider).runAutomatic().catchError((Object _) {
@@ -227,6 +230,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   Widget build(BuildContext context) {
     ref.watch(billReminderSyncProvider);
     ref.watch(planningAlertsProvider);
+    ref.watch(goalReviewSyncProvider);
     return ListenableBuilder(
       listenable: _preferences,
       builder: (context, _) {
@@ -391,6 +395,10 @@ class _RootScreenState extends State<RootScreen>
         onOpenInvestments: () => Navigator.push<void>(
           context,
           MaterialPageRoute(builder: (_) => const InvestmentsScreen()),
+        ),
+        onOpenSalary: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute(builder: (_) => const SalaryScreen()),
         ),
         onSettings: _settings,
         onNew: _new,

@@ -16,6 +16,8 @@ import '../../domain/entities/goal.dart';
 import '../providers/goal_providers.dart';
 import '../widgets/goal_form.dart';
 import '../widgets/goal_progress.dart';
+import '../widgets/goal_cash_card.dart';
+import '../widgets/goal_review_switch.dart';
 
 class GoalsScreen extends ConsumerWidget {
   const GoalsScreen({super.key, this.embedded = false});
@@ -56,6 +58,8 @@ class GoalsScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 12),
+              const GoalCashCard(),
+              if (items.isNotEmpty) const GoalReviewSwitch(),
               if (items.isEmpty)
                 EmptyState(
                   title: 'Nenhuma meta cadastrada.',
@@ -242,6 +246,11 @@ class _GoalDetailsScreen extends ConsumerWidget {
       }
     });
     final goal = result.valueOrNull;
+    final plan = ref
+        .watch(goalPlansProvider)
+        .valueOrNull
+        ?.where((item) => item.goal.id == goalId)
+        .firstOrNull;
     final theme = Theme.of(context);
     final accounts = ref.watch(allAccountsProvider).valueOrNull ?? [];
     final linkedAccount = accounts
@@ -284,6 +293,15 @@ class _GoalDetailsScreen extends ConsumerWidget {
                         const SizedBox(height: 12),
                         const Text('Falta guardar'),
                         MoneyText(goal.remainingCents),
+                        if (plan != null && plan.monthsLeft > 0) ...[
+                          const SizedBox(height: 8),
+                          const Text('Valor a separar por mês'),
+                          MoneyText.total(plan.monthlyTarget),
+                          const Text('Falta separar neste mês'),
+                          MoneyText.total(plan.leftThisMonth),
+                          if (plan.leftThisMonth == BigInt.zero)
+                            const Text('Meta de economia do mês em dia'),
+                        ],
                       ],
                     ],
                   ),
@@ -300,8 +318,10 @@ class _GoalDetailsScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               Text('Reserva manual', style: theme.textTheme.titleMedium),
               const SizedBox(height: 4),
-              const Text(
-                'Registre aqui o dinheiro que você já separou para esta meta.',
+              Text(
+                linkedAccount?.isAvailableCash == true
+                    ? 'O valor registrado reduz o saldo livre da conta vinculada.'
+                    : 'Registre o que já separou. Para considerar esta reserva no saldo livre, vincule uma conta disponível.',
               ),
               const SizedBox(height: 12),
               Wrap(

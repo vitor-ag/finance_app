@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../../core/calendar.dart';
 import '../../../../core/money.dart';
+import '../../../salary/salary_payment.dart';
 
 import '../../../../data/local/database.dart';
 import '../../../transactions/data/repositories/transaction_repository_impl.dart';
@@ -126,19 +127,30 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
         'O término precisa ser posterior ao início da recorrência.',
       );
     }
-    return (db.update(db.recurrences)..where(
-          (row) =>
-              row.id.equals(recurrence.id!) &
-              row.status.isIn(['active', 'paused']),
-        ))
-        .write(
-          RecurrencesCompanion(
-            name: Value(recurrence.name.trim()),
-            amountCents: Value(recurrence.amountCents),
-            description: Value(recurrence.description),
-            endDate: Value(end == null ? null : calendarDate(end)),
-          ),
+    return db.transaction(() async {
+      final previous = await (db.select(
+        db.recurrences,
+      )..where((row) => row.id.equals(recurrence.id!))).getSingleOrNull();
+      if (previous?.incomeSource == salaryIncomeSource &&
+          previous!.amountCents != recurrence.amountCents) {
+        throw StateError(
+          'Encerre a recorrência e cadastre a parcela com os novos valores em Salário.',
         );
+      }
+      await (db.update(db.recurrences)..where(
+            (row) =>
+                row.id.equals(recurrence.id!) &
+                row.status.isIn(['active', 'paused']),
+          ))
+          .write(
+            RecurrencesCompanion(
+              name: Value(recurrence.name.trim()),
+              amountCents: Value(recurrence.amountCents),
+              description: Value(recurrence.description),
+              endDate: Value(end == null ? null : calendarDate(end)),
+            ),
+          );
+    });
   }
 
   @override

@@ -17,6 +17,60 @@ class AndroidReminderNotifications implements ReminderNotifications {
   static const _dailyId = 2;
   static const _budgetId = 3;
   static const _investmentId = 4;
+  static const _goalsId = 5;
+  static const _goalsChannel = 'goal_savings';
+  Future<void> _goalUpdates = Future.value();
+
+  Future<bool> allowGoalReview() async {
+    await _ensureInitialized();
+    if (await _android.areNotificationsEnabled() != true) {
+      await _android.requestNotificationsPermission();
+    }
+    if (await _android.areNotificationsEnabled() != true) return false;
+    final channels = await _android.getNotificationChannels() ?? [];
+    return !channels.any(
+      (channel) =>
+          channel.id == _goalsChannel && channel.importance == Importance.none,
+    );
+  }
+
+  Future<void> syncGoalReview(DateTime? when) {
+    final next = _goalUpdates.then((_) async {
+      await _ensureInitialized();
+      if (when == null) {
+        await _plugin.cancel(_goalsId);
+        return;
+      }
+      final payload = when.millisecondsSinceEpoch.toString();
+      if ((await pending()).any(
+        (item) => item.id == _goalsId && item.key == payload,
+      ))
+        return;
+      await _plugin.zonedSchedule(
+        _goalsId,
+        'Confira suas metas',
+        'Há valores pendentes no planejamento de economia. Veja o progresso no Finance App.',
+        tz.TZDateTime.from(when, tz.UTC),
+        const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _goalsChannel,
+            'Economia para metas',
+            visibility: NotificationVisibility.private,
+          ),
+        ),
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: payload,
+      );
+    });
+    _goalUpdates = next.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return next;
+  }
+
   static const _planning = NotificationDetails(
     android: AndroidNotificationDetails(
       'finance_planning',

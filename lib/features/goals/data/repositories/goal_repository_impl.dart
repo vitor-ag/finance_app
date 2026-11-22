@@ -3,6 +3,7 @@ import 'package:drift/drift.dart';
 import '../../../../core/calendar.dart';
 import '../../../../core/money.dart';
 import '../../../../data/local/database.dart';
+import '../../../accounts/domain/entities/account.dart';
 import '../../domain/entities/goal.dart';
 import '../../domain/repositories/goal_repository.dart';
 
@@ -25,6 +26,10 @@ class GoalRepositoryImpl implements GoalRepository {
       db.select(db.goals)..where((table) => table.id.equals(id));
 
   @override
+  Future<List<Goal>> readGoals() async =>
+      (await db.select(db.goals).get()).map(_mapRow).toList();
+
+  @override
   Stream<List<Goal>> watchGoals() =>
       (db.select(db.goals)..orderBy([
             (table) => OrderingTerm.asc(table.dueDate),
@@ -45,6 +50,7 @@ class GoalRepositoryImpl implements GoalRepository {
     _validateReserve(goal.savedCents);
     return db.transaction(() async {
       await _validateLinkedAccount(goal.accountId);
+      await _checkFunding(goal.accountId, goal.savedCents);
       final id = await db
           .into(db.goals)
           .insert(
@@ -72,6 +78,7 @@ class GoalRepositoryImpl implements GoalRepository {
       final previous = await _requireGoal(id);
       if (previous.accountId != goal.accountId) {
         await _validateLinkedAccount(goal.accountId);
+        await _checkFunding(goal.accountId, previous.savedCents, except: id);
       }
       await (db.update(db.goals)..where((table) => table.id.equals(id))).write(
         GoalsCompanion(
@@ -98,6 +105,9 @@ class GoalRepositoryImpl implements GoalRepository {
       final current = await _requireGoal(id);
       final savedCents = current.savedCents + deltaCents;
       _validateReserve(savedCents);
+      if (deltaCents > 0) {
+        await _checkFunding(current.accountId, savedCents, except: id);
+      }
       await (db.update(db.goals)..where((table) => table.id.equals(id))).write(
         GoalsCompanion(savedCents: Value(savedCents)),
       );
@@ -144,5 +154,29 @@ class GoalRepositoryImpl implements GoalRepository {
             ))
             .getSingleOrNull();
     if (account == null) throw StateError('Selecione uma conta ativa.');
+  }
+
+  Future<void> _checkFunding(int? id, int cents, {int? except}) async {
+    if (id == null || cents == 0) return;
+    final account = await (db.select(
+      db.accounts,
+    )..where((row) => row.id.equals(id))).getSingle();
+    if (account.type == investmentAccountType) return;
+    if (!account.isActive)
+      throw StateError('Vincule uma conta disponível antes de guardar mais.');
+    final goals = await (db.select(
+      db.goals,
+    )..where((row) => row.accountId.equals(id))).get();
+    final total = goals
+        .where((row) => row.id != except)
+        .fold(
+          BigInt.from(cents),
+          (sum, row) => sum + BigInt.from(row.savedCents),
+        );
+    if (total > BigInt.from(account.currentBalanceCents)) {
+      throw StateError(
+        'O saldo livre desta conta é insuficiente para a reserva.',
+      );
+    }
   }
 }

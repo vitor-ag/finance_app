@@ -7,7 +7,7 @@ import '../../../core/providers/database_provider.dart';
 import '../data/cash_forecast_repository.dart';
 import '../domain/cash_forecast.dart';
 
-final _forecastDateProvider = Provider.autoDispose<DateTime>((ref) {
+final cashForecastDateProvider = Provider.autoDispose<DateTime>((ref) {
   final now = DateTime.now();
   final today = calendarDate(now);
   final timer = Timer(
@@ -19,6 +19,6 @@ final _forecastDateProvider = Provider.autoDispose<DateTime>((ref) {
 });
 
 final cashForecastProvider = StreamProvider.autoDispose<CashForecast>((ref) {
-  final today = ref.watch(_forecastDateProvider);
+  final today = ref.watch(cashForecastDateProvider);
   return CashForecastRepository(ref.watch(databaseProvider)).watch(today);
 });
