@@ -20,7 +20,7 @@ O diferencial central não é "mais um app de finanças", mas sim: **privacidade
 
 ## 2. Escopo
 
-**Dentro do escopo (MVP + evoluções previstas):** contas/carteiras, categorias, lançamentos de entrada/saída, transferências, cartões de crédito com parcelamento, contas a pagar (fixas/recorrentes/eventuais), metas, orçamento, investimentos (registro manual), dashboard, notificações locais, backup/restore local, segurança (PIN/biometria), dark/light mode.
+**Dentro do escopo (MVP + evoluções previstas):** contas/carteiras, categorias, lançamentos de entrada/saída, transferências, cartões de crédito com parcelamento, contas a pagar (fixas/recorrentes/eventuais), metas, orçamento, investimentos (registro manual), dashboard, notificações locais, backup/restore local, segurança (senha local e biometria), dark/light mode.
 
 **Fora do escopo inicial (futuro/opcional):** sincronização em nuvem, múltiplos usuários/contas compartilhadas, integração com Open Finance/bancos, OCR de comprovantes, leitura de notificações bancárias, IA/ML para previsões, versão iOS.
 
@@ -43,7 +43,7 @@ O diferencial central não é "mais um app de finanças", mas sim: **privacidade
 13. Tags
 14. Notificações Locais
 15. Backup e Restauração
-16. Segurança (PIN/biometria/criptografia)
+16. Segurança (senha local, biometria e bloqueio automático)
 17. Configurações
 
 ---
@@ -71,7 +71,7 @@ O diferencial central não é "mais um app de finanças", mas sim: **privacidade
 | RF17 | Criar e associar tags a lançamentos |
 | RF18 | Emitir notificações locais de vencimento, fechamento de fatura e estouro de orçamento |
 | RF19 | Exportar e importar backup local (arquivo), com exportação adicional em CSV/JSON |
-| RF20 | Proteger o app com PIN/biometria e bloqueio automático |
+| RF20 | Exigir senha local ou biometria no Android, com bloqueio automático configurável |
 | RF21 | Alternar entre tema claro e escuro |
 | RF22 | Editar, excluir (lógico) e duplicar lançamentos, com histórico/lixeira |
 
@@ -85,7 +85,7 @@ O diferencial central não é "mais um app de finanças", mas sim: **privacidade
 - **Extensibilidade:** novos módulos (ex.: backup em nuvem) não devem exigir reescrever o núcleo.
 - **Testabilidade:** regras de cálculo financeiro cobertas por testes automatizados, não apenas inspeção visual.
 - **Acessibilidade:** contraste adequado, tamanhos de fonte ajustáveis, suporte a leitores de tela nos elementos principais.
-- **Segurança proporcional:** criptografia apenas onde faz sentido (ex.: chave de acesso, não necessariamente todo o banco), evitando complexidade desnecessária para um app de uso pessoal single-user.
+- **Segurança proporcional:** o bloqueio protege o acesso pela interface. No MVP, o SQLite permanece no armazenamento privado do aplicativo, sem criptografia integral. Os backups portáteis terão criptografia própria.
 
 ## 6. Regras de Negócio (principais)
 
@@ -128,7 +128,7 @@ O diferencial central não é "mais um app de finanças", mas sim: **privacidade
 - **Banco de dados local:** Drift (ver seção 9)
 - **Notificações locais:** `flutter_local_notifications` + `timezone` (para agendamento preciso)
 - **Backup/exportação:** `file_picker` + `share_plus` para exportar/importar arquivos; `path_provider` para diretórios locais
-- **Segurança:** `local_auth` (biometria) + `flutter_secure_storage` (armazenamento seguro de chave/PIN)
+- **Segurança:** `flutter_secure_storage` com Android Keystore para o verificador, `local_auth` para consultar a disponibilidade e `BiometricPrompt` do AndroidX para vincular a autenticação à chave biométrica.
 - **Gráficos:** `fl_chart` (leve, nativo Flutter, sem dependências de WebView)
 - **Geração de PDF (futuro, relatórios):** `pdf` + `printing`
 
@@ -221,7 +221,7 @@ Proposta revisada (Bottom Navigation com 5 itens, mais enxuto que a sugestão in
 
 ## 14. Lista de Telas (principais)
 
-Dashboard · Lista de Movimentações · Novo/Editar Lançamento · Detalhe do Lançamento · Contas (lista) · Detalhe da Conta · Novo/Editar Conta · Transferência entre Contas · Cartões (lista) · Detalhe do Cartão/Fatura · Nova Compra no Cartão · Contas a Pagar (lista) · Nova/Editar Conta a Pagar · Investimentos (lista) · Detalhe do Investimento · Novo Aporte/Resgate · Metas (lista) · Detalhe/Nova Meta · Orçamento (mensal) · Categorias (gestão) · Tags (gestão) · Relatórios/Análises · Busca Avançada · Backup/Restauração · Segurança (PIN/biometria) · Configurações · Lixeira/Histórico.
+Dashboard · Lista de Movimentações · Novo/Editar Lançamento · Detalhe do Lançamento · Contas (lista) · Detalhe da Conta · Novo/Editar Conta · Transferência entre Contas · Cartões (lista) · Detalhe do Cartão/Fatura · Nova Compra no Cartão · Contas a Pagar (lista) · Nova/Editar Conta a Pagar · Investimentos (lista) · Detalhe do Investimento · Novo Aporte/Resgate · Metas (lista) · Detalhe/Nova Meta · Orçamento (mensal) · Categorias (gestão) · Tags (gestão) · Relatórios/Análises · Busca Avançada · Backup/Restauração · Segurança (senha local e biometria) · Configurações · Lixeira/Histórico.
 
 ---
 
@@ -235,7 +235,7 @@ Contas/carteiras · Categorias · Entradas · Saídas · Transferências · Dash
 
 **v1.1:** Cartões de crédito + parcelamento e faturas · Investimentos (registro manual) · Tags · Busca/filtros avançados.
 
-**v1.2:** Orçamento planejado x realizado com indicadores visuais · Análises descritivas e variações anormais · Exportação CSV/JSON · Segurança (PIN/biometria/criptografia).
+**v1.2:** Orçamento planejado x realizado com indicadores visuais · Análises descritivas e variações anormais · Exportação CSV/JSON · Segurança (senha local e biometria).
 
 **Futuro:** Backup em nuvem opcional (Drive/OneDrive/Dropbox) · Relatórios em PDF · Previsão de saldo futuro (cálculo determinístico) · Controle de dívidas/empréstimos entre pessoas · Widget de saldo na home · OCR de comprovantes · Versão iOS.
 
@@ -244,9 +244,21 @@ Contas/carteiras · Categorias · Entradas · Saídas · Transferências · Dash
 - **Risco:** modelar parcelamento/recorrência de forma simplista demais pode dificultar edição futura (ex.: renegociar uma compra parcelada). *Mitigação:* desenhar `Installment` como entidade própria desde o início, nunca como texto livre.
 - **Risco:** migração de schema do Drift mal planejada pode corromper dados do usuário em updates do app. *Mitigação:* testar migrações com dados reais antes de cada release; versionar backups.
 - **Risco:** dashboard "inteligente" (seção 31 do seu documento) pode ficar lento se todos os cálculos forem feitos on-the-fly a cada abertura. *Mitigação:* considerar tabelas/views materializadas ou cache incremental no Drift à medida que o volume de dados cresce.
-- **Decisão:** segurança será proporcional — PIN/biometria como gate de acesso ao app, com `flutter_secure_storage` para a chave, mas sem criptografar o banco inteiro no MVP (complexidade desnecessária para uso pessoal single-device).
+- **Decisão:** o bloqueio exige autenticação antes de exibir telas financeiras. A senha de acesso pertence à instalação e a criptografia de backup tem uma senha independente.
 - **Decisão:** todo cálculo de saldo é derivado de lançamentos (nunca editável diretamente), o que facilita auditoria e testes automatizados.
 
----
+## 18. Acesso local no Android
 
-*Próximo passo sugerido: sua aprovação deste documento antes de avançarmos para a Fase 1 (definição detalhada da arquitetura e criação do projeto Flutter).*
+- Na primeira abertura, inclusive após atualizar uma instalação que ainda não tem proteção, a pessoa cria e confirma uma senha de 8 a 128 caracteres. O cadastro preserva o banco existente. Toda nova inicialização do processo começa bloqueada.
+- O verificador versionado usa PBKDF2-HMAC-SHA-256 com 600 mil iterações e salt aleatório de 16 bytes. O aplicativo persiste o verificador e o estado do bloqueio em armazenamento protegido pelo Android Keystore, sem gravar a senha. Se o registro existente estiver ilegível, o app mantém o acesso bloqueado.
+- A biometria é opcional. A pessoa pode ativá-la depois de cadastrar a senha ou em **Mais → Configurações → Segurança**, mediante confirmação da senha nesse segundo caso. O Android valida biometria forte com uma chave que exige autenticação a cada uso. Após uma mudança de cadastro que invalide a chave, é preciso usar a senha do app e reativar a biometria. Cancelamento, falha ou indisponibilidade do sensor permitem voltar à senha. O app nunca recebe impressões digitais nem dados faciais.
+- Em **Segurança**, a pessoa pode alterar a senha após confirmar a atual, desativar a biometria e selecionar o prazo de bloqueio ao sair do primeiro plano. As opções são **imediatamente**, **30 segundos** (padrão), **1 minuto** e **5 minutos**. O conteúdo fica oculto enquanto o app estiver fora de primeiro plano. Ao voltar depois do prazo, a tela de desbloqueio é exibida antes dos dados financeiros.
+- A partir do terceiro erro de senha consecutivo, a espera começa em 5 segundos, dobra a cada erro subsequente e é limitada a 5 minutos. O prazo e a contagem de erros persistem entre aberturas, e a tela avisa quando será possível tentar novamente. A validação da senha correta reinicia a contagem.
+
+## 19. Backup criptografado e recuperação
+
+- A senha de acesso é local ao aparelho. A senha de criptografia protege os backups portáteis e continua válida para backups anteriores quando a senha de acesso muda. Backups incluem os dados financeiros e a versão do esquema. Credenciais locais, tentativas de acesso e chaves biométricas ficam fora do arquivo.
+- Antes de oferecer restauração, implementar um formato versionado com criptografia autenticada, salt aleatório e parâmetros de derivação documentados. Verificar autenticidade, integridade e compatibilidade antes de substituir dados. Uma falha de senha, leitura, validação ou importação deve preservar o banco existente.
+- A integração opcional com o Drive permitirá vincular a conta Google, buscar um backup e usar a senha de criptografia para validá-lo. Em outro aparelho, o desbloqueio dos dados restaurados exigirá o cadastro de uma senha de acesso local. O login Google concede acesso ao arquivo. A senha do backup concede acesso aos dados.
+- O envio automático dependerá de autorização explícita. A chave de envio deverá ficar protegida no Android Keystore e só viabilizar a criação de arquivos criptografados. A restauração em outro Android deverá depender da senha do backup e do arquivo, sem depender do Keystore original.
+- O app funciona sem servidor e não oferece recuperação de senha por e-mail. Quando a restauração estiver disponível, o fluxo de senha esquecida exigirá um backup válido e sua senha de criptografia antes de substituir os dados locais e cadastrar uma nova senha de acesso. Sem essa etapa implementada, o desbloqueio depende da senha local ou da biometria previamente ativada e ainda válida.
