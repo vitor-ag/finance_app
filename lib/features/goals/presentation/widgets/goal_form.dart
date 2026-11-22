@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/calendar.dart';
+import '../../../../core/design/category_style.dart';
+import '../../../../core/design/components.dart';
 import '../../../../core/money.dart';
 import '../../../../core/widgets/record_actions.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
@@ -9,7 +12,7 @@ import '../../domain/entities/goal.dart';
 import '../providers/goal_providers.dart';
 
 Future<void> showGoalForm(BuildContext context, {Goal? goal}) =>
-    showModalBottomSheet<void>(
+    showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (_) => _GoalForm(goal: goal),
@@ -32,6 +35,7 @@ class _GoalFormState extends ConsumerState<_GoalForm> {
   late DateTime? _dueDate;
   late int? _accountId;
   bool _saving = false;
+  late String? _icon = widget.goal?.icon;
 
   @override
   void initState() {
@@ -51,7 +55,8 @@ class _GoalFormState extends ConsumerState<_GoalForm> {
       id: widget.goal?.id,
       name: _name.trim(),
       targetCents: parseBrlCents(_target)!,
-      dueDate: _dueDate!,
+      dueDate: _dueDate,
+      icon: _icon,
       savedCents: parseBrlCents(_reserve) ?? 0,
       accountId: _accountId,
     );
@@ -151,8 +156,6 @@ class _GoalFormState extends ConsumerState<_GoalForm> {
               const SizedBox(height: 12),
               FormField<DateTime>(
                 initialValue: _dueDate,
-                validator: (date) =>
-                    date == null ? 'Selecione um prazo.' : null,
                 builder: (field) {
                   final date = field.value;
                   return Column(
@@ -160,8 +163,18 @@ class _GoalFormState extends ConsumerState<_GoalForm> {
                     children: [
                       ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.event_outlined),
+                        leading: const Icon(Symbols.event_rounded),
                         title: const Text('Prazo'),
+                        trailing: date == null
+                            ? null
+                            : IconButton(
+                                tooltip: 'Remover prazo',
+                                icon: const Icon(Symbols.close_rounded),
+                                onPressed: () {
+                                  _dueDate = null;
+                                  field.didChange(null);
+                                },
+                              ),
                         subtitle: Text(
                           date == null ? 'Selecionar data' : _dateLabel(date),
                         ),
@@ -213,6 +226,16 @@ class _GoalFormState extends ConsumerState<_GoalForm> {
                     ),
                 ],
                 onChanged: (id) => setState(() => _accountId = id),
+              ),
+              ExpansionTile(
+                title: const Text('Ícone da meta'),
+                tilePadding: EdgeInsets.zero,
+                children: [
+                  IconPalette(
+                    value: _icon,
+                    onChanged: (icon) => setState(() => _icon = icon),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               FilledButton(

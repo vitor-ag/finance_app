@@ -148,7 +148,10 @@ class AdaptiveScaffold extends StatelessWidget {
                     top: false,
                     child: SizedBox(
                       height: MediaQuery.textScalerOf(context).scale(12) > 16
-                          ? 88
+                          ? 44 +
+                                MediaQuery.textScalerOf(context).scale(11) *
+                                    8 /
+                                    3
                           : AppLayout.barHeight,
                       child: Row(
                         children: [

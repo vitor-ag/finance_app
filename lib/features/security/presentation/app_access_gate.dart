@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../core/design/components.dart';
 import '../data/android_access.dart';
 import '../domain/local_access.dart';
 import 'password_form.dart';
@@ -124,98 +126,114 @@ class _AccessScreenState extends State<_AccessScreen> {
       LocalAccess(ready: false) => 'Finance App',
       LocalAccess(needsPassword: true) => 'Crie sua senha',
       LocalAccess(offerBiometrics: true) => 'Ativar biometria?',
-      _ => 'Desbloquear Finance App',
+      _ => 'Bem-vindo de volta',
     };
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: ListView(
-              shrinkWrap: true,
-              padding: const EdgeInsets.all(24),
-              children: [
-                Icon(
-                  Icons.lock_outline,
-                  size: 40,
-                  color: theme.colorScheme.primary,
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  title,
-                  textAlign: TextAlign.center,
-                  style: theme.textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 24),
-                if (!access.ready) ...[
-                  if (access.loadFailed) ...[
-                    const AccessMessage(
-                      'Não foi possível abrir a proteção do app.',
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color.alphaBlend(
+                theme.colorScheme.primary.withValues(alpha: .12),
+                theme.scaffoldBackgroundColor,
+              ),
+              theme.scaffoldBackgroundColor,
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Center(
+            child: AppContent(
+              maxWidth: 480,
+              child: Center(
+                child: ListView(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    const Center(
+                      child: BrandShapes(icon: Symbols.lock_rounded, size: 96),
                     ),
-                    FilledButton(
-                      onPressed: access.busy ? null : access.load,
-                      child: const Text('Tentar novamente'),
+                    const SizedBox(height: 20),
+                    Text(
+                      title,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.headlineSmall,
                     ),
-                  ] else
-                    const Center(child: CircularProgressIndicator()),
-                ] else if (access.offerBiometrics) ...[
-                  const Text(
-                    'Use uma biometria cadastrada no Android para desbloquear o app.',
-                  ),
-                  const SizedBox(height: 12),
-                  if (_biometricMessage case final message?)
-                    AccessMessage(message),
-                  FilledButton.icon(
-                    onPressed: access.busy
-                        ? null
-                        : () => _useBiometrics(enroll: true),
-                    icon: const Icon(Icons.fingerprint),
-                    label: const Text('Ativar biometria'),
-                  ),
-                  TextButton(
-                    onPressed: access.busy ? null : access.finishSetup,
-                    child: const Text('Agora não'),
-                  ),
-                ] else if (access.needsPassword) ...[
-                  const Text(
-                    'Escolha uma senha de 8 a 128 caracteres para proteger seus dados neste aparelho.',
-                  ),
-                  const SizedBox(height: 16),
-                  PasswordForm(
-                    key: const ValueKey(PasswordFormMode.create),
-                    access: access,
-                    mode: PasswordFormMode.create,
-                    buttonLabel: 'Criar senha',
-                    onSubmit: (password, _) => access.createPassword(password),
-                  ),
-                ] else ...[
-                  PasswordForm(
-                    key: const ValueKey(PasswordFormMode.unlock),
-                    access: access,
-                    mode: PasswordFormMode.unlock,
-                    buttonLabel: 'Desbloquear',
-                    onSubmit: (password, _) =>
-                        access.unlockWithPassword(password),
-                  ),
-                  if (_biometricMessage case final message?)
-                    AccessMessage(message),
-                  if (access.biometricsEnabled)
-                    OutlinedButton.icon(
-                      onPressed: access.busy ? null : _useBiometrics,
-                      icon: const Icon(Icons.fingerprint),
-                      label: const Text('Usar biometria'),
-                    ),
-                  const ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    title: Text('Esqueci minha senha'),
-                    children: [
-                      Text(
-                        'Use a biometria se ela estiver ativada. O app ainda não tem um fluxo de recuperação de senha.',
+                    const SizedBox(height: 24),
+                    if (!access.ready) ...[
+                      if (access.loadFailed) ...[
+                        const AccessMessage(
+                          'Não foi possível abrir a proteção do app.',
+                        ),
+                        FilledButton(
+                          onPressed: access.busy ? null : access.load,
+                          child: const Text('Tentar novamente'),
+                        ),
+                      ] else
+                        const Center(child: CircularProgressIndicator()),
+                    ] else if (access.offerBiometrics) ...[
+                      const Text(
+                        'Use uma biometria cadastrada no Android para desbloquear o app.',
+                      ),
+                      const SizedBox(height: 12),
+                      if (_biometricMessage case final message?)
+                        AccessMessage(message),
+                      FilledButton.icon(
+                        onPressed: access.busy
+                            ? null
+                            : () => _useBiometrics(enroll: true),
+                        icon: const Icon(Symbols.fingerprint_rounded),
+                        label: const Text('Ativar biometria'),
+                      ),
+                      TextButton(
+                        onPressed: access.busy ? null : access.finishSetup,
+                        child: const Text('Agora não'),
+                      ),
+                    ] else if (access.needsPassword) ...[
+                      const Text(
+                        'Escolha uma senha de 8 a 128 caracteres para proteger seus dados neste aparelho.',
+                      ),
+                      const SizedBox(height: 16),
+                      PasswordForm(
+                        key: const ValueKey(PasswordFormMode.create),
+                        access: access,
+                        mode: PasswordFormMode.create,
+                        buttonLabel: 'Criar senha',
+                        onSubmit: (password, _) =>
+                            access.createPassword(password),
+                      ),
+                    ] else ...[
+                      PasswordForm(
+                        key: const ValueKey(PasswordFormMode.unlock),
+                        access: access,
+                        mode: PasswordFormMode.unlock,
+                        buttonLabel: 'Desbloquear',
+                        onSubmit: (password, _) =>
+                            access.unlockWithPassword(password),
+                      ),
+                      if (_biometricMessage case final message?)
+                        AccessMessage(message),
+                      if (access.biometricsEnabled)
+                        OutlinedButton.icon(
+                          onPressed: access.busy ? null : _useBiometrics,
+                          icon: const Icon(Symbols.fingerprint_rounded),
+                          label: const Text('Usar biometria'),
+                        ),
+                      const ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        title: Text('Esqueci minha senha'),
+                        children: [
+                          Text(
+                            'Use a biometria se ela estiver ativada. O app ainda não tem um fluxo de recuperação de senha.',
+                          ),
+                        ],
                       ),
                     ],
-                  ),
-                ],
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),

@@ -1,80 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
+import '../../../../core/design/category_style.dart';
+import '../../../../core/design/components.dart';
 import '../../domain/entities/category.dart';
 
 class CategoryCard extends StatelessWidget {
-  final Category category;
-  final String? parentName;
-  final VoidCallback? onTap;
-  final VoidCallback? onArchive;
-
   const CategoryCard({
     super.key,
     required this.category,
     this.parentName,
     this.onTap,
     this.onArchive,
+    this.total,
+    this.drag,
   });
-
-  IconData _getCategoryIcon(String type) {
-    // Placeholder icon logic — will be replaced by user-chosen icons later.
-    return type == 'income' ? Icons.trending_up : Icons.trending_down;
-  }
+  final Category category;
+  final String? parentName;
+  final VoidCallback? onTap, onArchive;
+  final BigInt? total;
+  final Widget? drag;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isIncome = category.type == 'income';
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        onTap: onTap,
-        leading: CircleAvatar(
-          radius: 20,
-          backgroundColor: isIncome
-              ? Colors.green.withValues(alpha: 0.15)
-              : Colors.red.withValues(alpha: 0.15),
-          child: Icon(
-            _getCategoryIcon(category.type),
-            color: isIncome ? Colors.green : Colors.red,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          category.name,
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-        ),
-        subtitle: Text(
-          [
-            isIncome ? 'Receita' : 'Despesa',
-            if (parentName != null) parentName!,
-            if (!category.isActive) 'Arquivada',
-          ].join(' · '),
-          style: TextStyle(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontSize: 12,
-          ),
-        ),
-        trailing: onArchive == null
-            ? null
-            : PopupMenuButton<String>(
-                tooltip: 'Ações da categoria',
-                onSelected: (_) => onArchive!(),
-                itemBuilder: (_) => const [
-                  PopupMenuItem(
-                    value: 'archive',
-                    child: Text('Arquivar categoria'),
+    final (icon, color) = categoryStyle(context, category);
+    final income = category.type == 'income';
+    final text = Theme.of(context).textTheme;
+    return AppSurface(
+      padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+      onTap: onTap,
+      child: Row(
+        children: [
+          AppIcon(icon, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(category.name, style: text.titleSmall),
+                Text(
+                  [
+                    income ? 'Receita' : 'Despesa',
+                    if (parentName != null) parentName!,
+                    if (!category.isActive) 'Arquivada',
+                  ].join(' · '),
+                  style: text.bodySmall,
+                ),
+                if (total != null)
+                  MoneyText.total(
+                    total!,
+                    kind: income ? MoneyKind.income : MoneyKind.expense,
+                    signed: true,
                   ),
-                ],
-              ),
+              ],
+            ),
+          ),
+          if (onArchive != null)
+            PopupMenuButton<String>(
+              tooltip: 'Ações da categoria',
+              icon: const Icon(Symbols.more_vert_rounded),
+              onSelected: (_) => onArchive!(),
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'archive',
+                  child: Text('Arquivar categoria'),
+                ),
+              ],
+            ),
+          if (drag != null) drag!,
+        ],
       ),
     );
   }

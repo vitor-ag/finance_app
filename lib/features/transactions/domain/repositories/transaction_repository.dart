@@ -18,6 +18,7 @@ abstract class TransactionRepository {
 
   /// Soft-deletes a transaction AND reverts its balance effect atomically.
   Future<void> deleteTransaction(int id);
+  Future<void> deleteRecurrenceEntries(int recurrenceId, {DateTime? from});
 
   Future<void> restoreTransaction(int id);
 }

@@ -1,108 +1,148 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../../core/money.dart';
+import '../../../../core/design/app_theme.dart';
+import '../../../../core/design/category_style.dart';
+import '../../../../core/design/components.dart';
+import '../../../categories/domain/entities/category.dart';
 import '../../domain/entities/transaction.dart';
 
-class TransactionTile extends StatelessWidget {
-  final Transaction transaction;
-  final String accountName;
-  final String? categoryName;
-  final String? destinationAccountName;
-  final VoidCallback? onTap;
+MoneyKind transactionKind(Transaction item) => switch (item.type) {
+  'expense' => MoneyKind.expense,
+  'income' => MoneyKind.income,
+  _ => MoneyKind.neutral,
+};
 
+String transactionType(String type) => switch (type) {
+  'income' => 'Receita',
+  'transfer' => 'Transferência',
+  'card_payment' => 'Pagamento de fatura',
+  _ => 'Despesa',
+};
+
+String transactionTitle(Transaction item, Category? category) =>
+    item.description?.trim().isNotEmpty == true
+    ? item.description!
+    : category?.name ?? transactionType(item.type);
+
+class TransactionTile extends StatelessWidget {
   const TransactionTile({
     super.key,
     required this.transaction,
     required this.accountName,
-    this.categoryName,
+    this.category,
     this.destinationAccountName,
     this.onTap,
+    this.onActions,
   });
+
+  final Transaction transaction;
+  final String accountName;
+  final Category? category;
+  final String? destinationAccountName;
+  final VoidCallback? onTap, onActions;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
-    final isIncome = transaction.type == 'income';
-    final isTransfer = transaction.type == 'transfer';
-
-    final color = isTransfer
-        ? theme.colorScheme.tertiary
-        : (isIncome ? Colors.green : Colors.red);
-
-    final icon = isTransfer
-        ? Icons.swap_horiz
-        : (isIncome ? Icons.arrow_downward : Icons.arrow_upward);
-
-    final subtitle = isTransfer
-        ? '$accountName → ${destinationAccountName ?? '-'}'
-        : '$accountName${categoryName != null ? ' · $categoryName' : ''}';
-
-    final sign = isIncome ? '+' : (isTransfer ? '' : '-');
-
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        onTap: onTap,
-        leading: CircleAvatar(
-          radius: 20,
-          backgroundColor: color.withValues(alpha: 0.15),
-          child: Icon(icon, color: color, size: 20),
-        ),
-        title: Text(
-          transaction.description?.isNotEmpty == true
-              ? transaction.description!
-              : (isTransfer ? 'Transferência' : (categoryName ?? '-')),
-          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
-        ),
-        subtitle: DefaultTextStyle(
-          style: TextStyle(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontSize: 12,
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(subtitle),
-              if (transaction.incomeSource case final source?) Text(source),
-              Text(
-                '${transaction.date.day}/${transaction.date.month}/${transaction.date.year}',
-              ),
-            ],
-          ),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '$sign${formatBrl(transaction.amountCents)}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 15,
-                color: color,
-              ),
+    final palette = AppColors.of(context);
+    final kind = transactionKind(transaction);
+    final (icon, color) = category == null
+        ? switch (transaction.type) {
+            'income' => (Symbols.arrow_upward_rounded, palette.incomeText),
+            'expense' => (Symbols.arrow_downward_rounded, palette.expenseText),
+            'card_payment' => (
+              Symbols.credit_card_rounded,
+              theme.colorScheme.primary,
             ),
-            if (onTap != null)
-              IconButton(
-                tooltip: transaction.deletedAt == null
-                    ? 'Ações do lançamento'
-                    : 'Restaurar lançamento',
-                icon: Icon(
-                  transaction.deletedAt == null
-                      ? Icons.more_vert
-                      : Icons.restore,
+            _ => (Symbols.swap_horiz_rounded, theme.colorScheme.primary),
+          }
+        : categoryStyle(context, category);
+    final status = switch (transaction.status) {
+      'pending' => 'Agendado',
+      'cancelled' => 'Cancelado',
+      _ => DateFormat.Hm('pt_BR').format(transaction.date),
+    };
+    final subtitle = transaction.type == 'transfer'
+        ? '$accountName → ${destinationAccountName ?? 'Conta'}'
+        : '${category?.name ?? transactionType(transaction.type)} · $accountName';
+    final largeText = MediaQuery.textScalerOf(context).scale(16) > 21;
+    return Material(
+      type: MaterialType.transparency,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppLayout.controlRadius),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 64),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                AppIcon(icon, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        transactionTitle(transaction, category),
+                        maxLines: largeText ? 2 : 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        subtitle,
+                        style: theme.textTheme.bodySmall,
+                        maxLines: largeText ? 2 : 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (largeText) ...[
+                        MoneyText(
+                          transaction.amountCents,
+                          kind: kind,
+                          signed: true,
+                        ),
+                        Text(status, style: theme.textTheme.labelMedium),
+                      ],
+                    ],
+                  ),
                 ),
-                onPressed: onTap,
-              ),
-          ],
+                if (!largeText) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        MoneyText(
+                          transaction.amountCents,
+                          kind: kind,
+                          signed: true,
+                          alignment: Alignment.centerRight,
+                        ),
+                        Text(
+                          status,
+                          style: theme.textTheme.labelMedium,
+                          textAlign: TextAlign.end,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (onActions != null)
+                  IconButton(
+                    tooltip: transaction.deletedAt == null
+                        ? 'Ações do lançamento'
+                        : 'Restaurar lançamento',
+                    icon: Icon(
+                      transaction.deletedAt == null
+                          ? Symbols.more_vert_rounded
+                          : Symbols.restore_rounded,
+                    ),
+                    onPressed: onActions,
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );

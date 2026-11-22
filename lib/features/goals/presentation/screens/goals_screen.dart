@@ -1,6 +1,14 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/design/app_theme.dart';
+import '../../../../core/design/category_style.dart';
+import '../../../../core/design/components.dart';
 import '../../../../core/money.dart';
 import '../../../../core/widgets/record_actions.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
@@ -10,69 +18,124 @@ import '../widgets/goal_form.dart';
 import '../widgets/goal_progress.dart';
 
 class GoalsScreen extends ConsumerWidget {
-  const GoalsScreen({super.key});
+  const GoalsScreen({super.key, this.embedded = false});
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final goals = ref.watch(allGoalsProvider);
     final theme = Theme.of(context);
+    void addGoal() => showGoalForm(context);
+    final wide = WindowSizeClass.of(context) != WindowSizeClass.compact;
     return Scaffold(
-      appBar: AppBar(title: const Text('Metas financeiras'), centerTitle: true),
-      body: goals.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Não foi possível carregar as metas.')),
-        data: (items) {
-          if (items.isEmpty) {
-            return const Center(child: Text('Nenhuma meta cadastrada.'));
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 88),
-            itemCount: items.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 8),
-            itemBuilder: (context, index) {
-              final goal = items[index];
-              return Card(
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () => Navigator.push<void>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => _GoalDetailsScreen(goalId: goal.id!),
+      appBar: embedded ? null : AppBar(title: const Text('Metas financeiras')),
+      body: AppContent(
+        child: goals.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => EmptyState(
+            title: 'Não foi possível carregar as metas.',
+            actionLabel: 'Tentar novamente',
+            onAction: () => ref.invalidate(allGoalsProvider),
+          ),
+          data: (items) => ListView(
+            key: const PageStorageKey('metas'),
+            padding: AppLayout.pagePadding(context).copyWith(bottom: 88),
+            children: [
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (embedded)
+                    Text('Metas', style: theme.textTheme.titleLarge),
+                  if (wide && items.isNotEmpty)
+                    TextButton.icon(
+                      onPressed: addGoal,
+                      icon: const Icon(Symbols.add_rounded),
+                      label: const Text('Nova meta'),
                     ),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (items.isEmpty)
+                EmptyState(
+                  title: 'Nenhuma meta cadastrada.',
+                  message: 'Escolha um objetivo e acompanhe o quanto você já guardou.',
+                  icon: Symbols.flag_rounded,
+                  actionLabel: wide ? 'Nova meta' : null,
+                  onAction: wide ? addGoal : null,
+                )
+              else
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth >= 470
+                        ? (constraints.maxWidth - 12) / 2
+                        : constraints.maxWidth;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                goal.name,
-                                style: theme.textTheme.titleMedium,
+                        for (final goal in items)
+                          SizedBox(
+                            width: width,
+                            child: AppSurface(
+                              onTap: () {
+                                final details = _GoalDetailsScreen(
+                                  goalId: goal.id!,
+                                );
+                                if (wide) {
+                                  showAppBottomSheet<void>(
+                                    context: context,
+                                    sidePanel: true,
+                                    builder: (_) => details,
+                                  );
+                                } else {
+                                  Navigator.push<void>(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => details),
+                                  );
+                                }
+                              },
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      AppIcon(
+                                        financialIcons[goal.icon]?.$1 ??
+                                            Symbols.flag_rounded,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          goal.name,
+                                          style: theme.textTheme.titleMedium,
+                                        ),
+                                      ),
+                                      const Icon(Symbols.chevron_right_rounded),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 8),
+                                  GoalProgress(goal: goal),
+                                ],
                               ),
                             ),
-                            const Icon(Icons.chevron_right),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        GoalProgress(goal: goal),
+                          ),
                       ],
-                    ),
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
-          );
-        },
+            ],
+          ),
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => showGoalForm(context),
-        icon: const Icon(Icons.add),
-        label: const Text('Nova meta'),
-      ),
+      floatingActionButton: wide
+          ? null
+          : FloatingActionButton.extended(
+              heroTag: 'nova-meta',
+              onPressed: addGoal,
+              icon: const Icon(Symbols.add_rounded),
+              label: const Text('Nova meta'),
+            ),
     );
   }
 }
@@ -171,6 +234,13 @@ class _GoalDetailsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final result = ref.watch(goalByIdProvider(goalId));
+    final movements = ref.watch(goalMovementsProvider(goalId));
+    ref.listen(goalByIdProvider(goalId), (before, after) {
+      if (before?.valueOrNull?.isReached == false &&
+          after.valueOrNull?.isReached == true) {
+        HapticFeedback.lightImpact();
+      }
+    });
     final goal = result.valueOrNull;
     final theme = Theme.of(context);
     final accounts = ref.watch(allAccountsProvider).valueOrNull ?? [];
@@ -186,7 +256,7 @@ class _GoalDetailsScreen extends ConsumerWidget {
             IconButton(
               onPressed: () => showGoalForm(context, goal: goal),
               tooltip: 'Editar meta',
-              icon: const Icon(Icons.edit_outlined),
+              icon: const Icon(Symbols.edit_rounded),
             ),
         ],
       ),
@@ -207,13 +277,13 @@ class _GoalDetailsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Center(child: _GoalRing(goal: goal)),
+                      const SizedBox(height: 12),
                       GoalProgress(goal: goal),
                       if (!goal.isReached) ...[
                         const SizedBox(height: 12),
-                        Text(
-                          'Faltam ${formatBrl(goal.remainingCents)}',
-                          style: theme.textTheme.titleSmall,
-                        ),
+                        const Text('Falta guardar'),
+                        MoneyText(goal.remainingCents),
                       ],
                     ],
                   ),
@@ -221,7 +291,9 @@ class _GoalDetailsScreen extends ConsumerWidget {
               ),
               if (linkedAccount != null)
                 ListTile(
-                  leading: const Icon(Icons.account_balance_wallet_outlined),
+                  leading: const AppIcon(
+                    Symbols.account_balance_wallet_rounded,
+                  ),
                   title: const Text('Conta de referência'),
                   subtitle: Text(linkedAccount.name),
                 ),
@@ -238,17 +310,55 @@ class _GoalDetailsScreen extends ConsumerWidget {
                 children: [
                   FilledButton.icon(
                     onPressed: () => _adjust(context, ref, withdraw: false),
-                    icon: const Icon(Icons.add),
+                    icon: const Icon(Symbols.add_rounded),
                     label: const Text('Adicionar à reserva'),
                   ),
                   OutlinedButton.icon(
                     onPressed: goal.savedCents == 0
                         ? null
                         : () => _adjust(context, ref, withdraw: true),
-                    icon: const Icon(Icons.remove),
+                    icon: const Icon(Symbols.remove_rounded),
                     label: const Text('Retirar da reserva'),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+              Text('Histórico de aportes', style: theme.textTheme.titleLarge),
+              const SizedBox(height: 8),
+              movements.when(
+                loading: () => const LinearProgressIndicator(),
+                error: (_, _) =>
+                    const Text('Não foi possível carregar o histórico.'),
+                data: (items) => items.isEmpty
+                    ? const Text('Nenhum aporte registrado.')
+                    : AppSurface(
+                        child: Column(
+                          children: [
+                            for (final item in items)
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  item.deltaCents < 0 ? 'Retirada' : 'Aporte',
+                                ),
+                                subtitle: Text(
+                                  DateFormat.yMd('pt_BR').format(item.date),
+                                ),
+                                trailing: ConstrainedBox(
+                                  constraints: const BoxConstraints(
+                                    maxWidth: 132,
+                                  ),
+                                  child: MoneyText(
+                                    item.deltaCents,
+                                    signed: true,
+                                    kind: item.deltaCents < 0
+                                        ? MoneyKind.expense
+                                        : MoneyKind.income,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
               ),
               const SizedBox(height: 16),
               Align(
@@ -256,7 +366,7 @@ class _GoalDetailsScreen extends ConsumerWidget {
                 child: TextButton.icon(
                   onPressed: () => _delete(context, ref, goal),
                   icon: Icon(
-                    Icons.delete_outline,
+                    Symbols.delete_outline_rounded,
                     color: theme.colorScheme.error,
                   ),
                   label: Text(
@@ -271,4 +381,97 @@ class _GoalDetailsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _GoalRing extends StatelessWidget {
+  const _GoalRing({required this.goal});
+  final Goal goal;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final reduce = MediaQuery.disableAnimationsOf(context);
+    return SizedBox.square(
+      dimension: 200,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          TweenAnimationBuilder<double>(
+            tween: Tween(
+              begin: 0,
+              end: (goal.savedCents / goal.targetCents).clamp(0.0, 1.0),
+            ),
+            duration: reduce ? Duration.zero : AppLayout.progressMotion,
+            curve: Curves.easeOutCubic,
+            builder: (context, value, _) => SizedBox.expand(
+              child: CircularProgressIndicator(
+                value: value,
+                strokeWidth: 10,
+                strokeCap: StrokeCap.round,
+                color: goal.isReached
+                    ? AppColors.of(context).income
+                    : theme.colorScheme.primary,
+                backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                semanticsLabel: 'Progresso da meta',
+                semanticsValue: '${goal.progressPercent}%',
+              ),
+            ),
+          ),
+          Text(
+            '${goal.progressPercent}%',
+            style: theme.textTheme.headlineLarge,
+          ),
+          if (goal.isReached && !reduce)
+            IgnorePointer(
+              child: TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: const Duration(milliseconds: 1200),
+                builder: (context, value, _) => SizedBox.expand(
+                  child: CustomPaint(
+                    painter: _GoalConfetti(
+                      value,
+                      theme.colorScheme.primary,
+                      theme.colorScheme.secondary,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GoalConfetti extends CustomPainter {
+  const _GoalConfetti(this.progress, this.primary, this.secondary);
+  final double progress;
+  final Color primary, secondary;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint();
+    for (var i = 0; i < 18; i++) {
+      final angle = i * math.pi / 9;
+      final distance = 60 + progress * (40 + i % 5 * 6);
+      final offset = Offset(
+        math.cos(angle) * distance,
+        math.sin(angle) * distance + 20 * progress * progress,
+      );
+      paint.color = (i.isEven ? primary : secondary).withValues(
+        alpha: 1 - progress,
+      );
+      canvas.drawCircle(
+        size.center(Offset.zero) + offset,
+        i.isEven ? 3 : 2,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GoalConfetti oldDelegate) =>
+      oldDelegate.progress != progress ||
+      oldDelegate.primary != primary ||
+      oldDelegate.secondary != secondary;
 }

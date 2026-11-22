@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/design/app_theme.dart';
+import '../../../core/design/components.dart';
 import '../../backup/data/android_drive_backup.dart';
 import '../../backup/presentation/cloud_backup_screen.dart';
+import '../../../core/design/discreet_setting.dart';
 import '../data/android_access.dart';
 import '../domain/local_access.dart';
 import 'password_form.dart';
@@ -19,21 +23,21 @@ class SettingsScreen extends ConsumerWidget {
         children: [
           if (ref.watch(driveBackupProvider) != null)
             ListTile(
-              leading: const Icon(Icons.cloud_outlined),
+              leading: const Icon(Symbols.cloud_rounded),
               title: const Text('Backup em nuvem'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Symbols.chevron_right_rounded),
               onTap: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(builder: (_) => const CloudBackupScreen()),
               ),
             ),
           if (access != null)
             ListTile(
-              leading: const Icon(Icons.shield_outlined),
+              leading: const Icon(Symbols.shield_rounded),
               title: const Text('Segurança'),
-              trailing: const Icon(Icons.chevron_right),
+              trailing: const Icon(Symbols.chevron_right_rounded),
               onTap: () => Navigator.of(context).push<void>(
                 MaterialPageRoute(
-                  builder: (_) => _SecurityScreen(access: access),
+                  builder: (_) => SecurityScreen(access: access),
                 ),
               ),
             ),
@@ -43,16 +47,16 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-class _SecurityScreen extends StatefulWidget {
-  const _SecurityScreen({required this.access});
+class SecurityScreen extends StatefulWidget {
+  const SecurityScreen({super.key, required this.access});
 
   final LocalAccess access;
 
   @override
-  State<_SecurityScreen> createState() => _SecurityScreenState();
+  State<SecurityScreen> createState() => _SecurityScreenState();
 }
 
-class _SecurityScreenState extends State<_SecurityScreen> {
+class _SecurityScreenState extends State<SecurityScreen> {
   late final AppLifecycleListener _lifecycle;
   late Future<bool> _available;
 
@@ -144,76 +148,81 @@ class _SecurityScreenState extends State<_SecurityScreen> {
     listenable: _access,
     builder: (context, _) => Scaffold(
       appBar: AppBar(title: const Text('Segurança')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.password),
-            title: const Text('Alterar senha'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: _access.busy
-                ? null
-                : () => _openPasswordPage(PasswordFormMode.change),
-          ),
-          FutureBuilder<bool>(
-            future: _available,
-            builder: (context, snapshot) {
-              final available = snapshot.data ?? false;
-              return SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                secondary: const Icon(Icons.fingerprint),
-                title: const Text('Desbloqueio por biometria'),
-                subtitle: Text(
-                  available
-                      ? 'Use uma biometria cadastrada no Android.'
-                      : 'Biometria forte indisponível neste aparelho.',
-                ),
-                value: _access.biometricsEnabled,
-                onChanged:
-                    _access.busy || (!available && !_access.biometricsEnabled)
-                    ? null
-                    : (enabled) {
-                        if (enabled) {
-                          _openPasswordPage(PasswordFormMode.confirm);
-                        } else {
-                          _save(_access.disableBiometrics);
-                        }
-                      },
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          InputDecorator(
-            decoration: const InputDecoration(
-              labelText: 'Bloqueio automático',
-              helperText: 'Tempo fora do app antes de solicitar desbloqueio.',
-              helperMaxLines: 2,
-              border: OutlineInputBorder(),
+      body: AppContent(
+        maxWidth: AppLayout.maxReading,
+        child: ListView(
+          padding: AppLayout.pagePadding(context),
+          children: [
+            const AppSurface(child: DiscreetSetting()),
+            const SizedBox(height: 16),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Symbols.password_rounded),
+              title: const Text('Alterar senha'),
+              trailing: const Icon(Symbols.chevron_right_rounded),
+              onTap: _access.busy
+                  ? null
+                  : () => _openPasswordPage(PasswordFormMode.change),
             ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<Duration>(
-                isDense: true,
-                isExpanded: true,
-                value: _access.lockDelay,
-                items: [
-                  for (final option in lockDelayOptions.entries)
-                    DropdownMenuItem(
-                      value: option.key,
-                      child: Text(option.value),
-                    ),
-                ],
-                onChanged: _access.busy
-                    ? null
-                    : (delay) {
-                        if (delay != null) {
-                          _save(() => _access.setLockDelay(delay));
-                        }
-                      },
+            FutureBuilder<bool>(
+              future: _available,
+              builder: (context, snapshot) {
+                final available = snapshot.data ?? false;
+                return SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Symbols.fingerprint_rounded),
+                  title: const Text('Desbloqueio por biometria'),
+                  subtitle: Text(
+                    available
+                        ? 'Use uma biometria cadastrada no Android.'
+                        : 'Biometria forte indisponível neste aparelho.',
+                  ),
+                  value: _access.biometricsEnabled,
+                  onChanged:
+                      _access.busy || (!available && !_access.biometricsEnabled)
+                      ? null
+                      : (enabled) {
+                          if (enabled) {
+                            _openPasswordPage(PasswordFormMode.confirm);
+                          } else {
+                            _save(_access.disableBiometrics);
+                          }
+                        },
+                );
+              },
+            ),
+            const SizedBox(height: 16),
+            InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Bloqueio automático',
+                helperText: 'Tempo fora do app antes de solicitar desbloqueio.',
+                helperMaxLines: 2,
+                border: OutlineInputBorder(),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<Duration>(
+                  isDense: true,
+                  isExpanded: true,
+                  value: _access.lockDelay,
+                  items: [
+                    for (final option in lockDelayOptions.entries)
+                      DropdownMenuItem(
+                        value: option.key,
+                        child: Text(option.value),
+                      ),
+                  ],
+                  onChanged: _access.busy
+                      ? null
+                      : (delay) {
+                          if (delay != null) {
+                            _save(() => _access.setLockDelay(delay));
+                          }
+                        },
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     ),
   );

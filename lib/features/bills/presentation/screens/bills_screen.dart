@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/design/app_theme.dart';
+import '../../../../core/design/components.dart';
 import '../../../../core/money.dart';
 import '../../../../core/widgets/record_actions.dart';
 import '../../../accounts/domain/entities/account.dart';
@@ -11,7 +14,9 @@ import '../providers/bill_providers.dart';
 import '../widgets/bill_tile.dart';
 
 class BillsScreen extends ConsumerWidget {
-  const BillsScreen({super.key});
+  const BillsScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   Future<void> _showBillForm(
     BuildContext context,
@@ -27,12 +32,9 @@ class BillsScreen extends ConsumerWidget {
         bill?.dueDate ?? DateTime.now().add(const Duration(days: 7));
     var saving = false;
 
-    await showModalBottomSheet<void>(
+    await showAppBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
       builder: (ctx) => Consumer(
         builder: (context, ref, _) {
           final categories =
@@ -134,7 +136,10 @@ class BillsScreen extends ConsumerWidget {
                         subtitle: Text(
                           '${selectedDate.day}/${selectedDate.month}/${selectedDate.year}',
                         ),
-                        trailing: const Icon(Icons.calendar_today, size: 18),
+                        trailing: const Icon(
+                          Symbols.calendar_today_rounded,
+                          size: 18,
+                        ),
                         onTap: () async {
                           final picked = await showDatePicker(
                             context: context,
@@ -316,31 +321,31 @@ class BillsScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'Contas a Pagar',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: billsAsync.when(
+      appBar: embedded
+          ? null
+          : AppBar(
+              title: const Text(
+                'Contas a Pagar',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              centerTitle: true,
+            ),
+      body: AppContent(maxWidth: AppLayout.maxReading, child: billsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => Center(child: Text('Erro: $error')),
         data: (bills) {
           if (bills.isEmpty) {
-            return const Center(
-              child: Text(
-                'Nenhuma conta a pagar cadastrada',
-                style: TextStyle(fontWeight: FontWeight.w600),
-              ),
-            );
+            return const SingleChildScrollView(child: EmptyState(
+              title: 'Nenhuma conta a pagar cadastrada', icon: Symbols.event_rounded,
+              message: 'Organize seus vencimentos em um só lugar.',
+            ));
           }
 
           final sorted = [...bills]
             ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
 
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: AppLayout.pagePadding(context).copyWith(bottom: 88),
             itemCount: sorted.length,
             itemBuilder: (context, index) {
               final bill = sorted[index];
@@ -377,10 +382,11 @@ class BillsScreen extends ConsumerWidget {
             },
           );
         },
-      ),
+      )),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'novo-conta-a-pagar',
         onPressed: () => _showBillForm(context, ref),
-        icon: const Icon(Icons.add),
+        icon: const Icon(Symbols.add_rounded),
         label: const Text('Nova Conta'),
       ),
     );

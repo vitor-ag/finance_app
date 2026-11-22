@@ -155,7 +155,7 @@ class DriveSync {
   }
 
   Future<BackupSnapshot> _download(DriveBackup file) async {
-    if (file.header.schema != database.schemaVersion) {
+    if (!database.supportsVersion(file.header.schema)) {
       throw const BackupProblem('A versão do banco do backup é incompatível.');
     }
     final encrypted = await drive.download(file);

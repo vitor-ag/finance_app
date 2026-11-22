@@ -1,321 +1,541 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
+import 'package:material_symbols_icons/symbols.dart';
 
-import '../../../../core/calendar.dart';
-import '../../../../core/money.dart';
+import '../../../../core/design/app_preferences.dart';
+import '../../../../core/design/app_theme.dart';
+import '../../../../core/design/balance_card.dart';
+import '../../../../core/design/components.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
 import '../../../bills/presentation/providers/bill_providers.dart';
-import '../../../credit_cards/presentation/credit_card_providers.dart';
-import '../../domain/dashboard_overview.dart';
-import '../providers/dashboard_providers.dart';
+import '../../../budgets/budget_data.dart';
+import '../../../budgets/budgets_screen.dart';
+import '../../../categories/domain/entities/category.dart';
+import '../../../categories/presentation/providers/category_providers.dart';
+import '../../../reports/category_chart.dart';
+import '../../../reports/finance_summary.dart';
+import '../../../transactions/presentation/providers/transaction_providers.dart';
+import '../../../transactions/presentation/widgets/transaction_tile.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
-  const DashboardScreen({super.key, required this.onOpenBills});
+  const DashboardScreen({
+    super.key,
+    required this.onOpenBills,
+    required this.onSettings,
+    required this.onNew,
+    required this.onReports,
+    required this.onPlanning,
+    required this.onTransactions,
+  });
 
-  final VoidCallback onOpenBills;
+  final VoidCallback onOpenBills,
+      onSettings,
+      onReports,
+      onPlanning,
+      onTransactions;
+  final ValueChanged<String> onNew;
 
   @override
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  static const _months = [
-    'Janeiro',
-    'Fevereiro',
-    'Março',
-    'Abril',
-    'Maio',
-    'Junho',
-    'Julho',
-    'Agosto',
-    'Setembro',
-    'Outubro',
-    'Novembro',
-    'Dezembro',
-  ];
-
-  late final AppLifecycleListener _lifecycle;
   DateTime? _selectedMonth;
-
-  @override
-  void initState() {
-    super.initState();
-    _lifecycle = AppLifecycleListener(onResume: () => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
-  }
-
-  void _changeMonth(DateTime month, int offset, DateTime current) {
-    final selected = DateTime(month.year, month.month + offset);
-    setState(() => _selectedMonth = selected == current ? null : selected);
-  }
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
-    final current = DateTime(now.year, now.month);
-    final month = _selectedMonth ?? current;
+    final month = _selectedMonth ?? firstOfMonth(now);
     final accounts = ref.watch(allAccountsProvider);
     final bills = ref.watch(allBillsProvider);
-    final transactions = ref.watch(dashboardTransactionsProvider(month));
-    final purchases = ref.watch(cardPurchasesProvider);
-    final colors = Theme.of(context).colorScheme;
-    final text = Theme.of(context).textTheme;
-    final hasError =
+    final transactions = ref.watch(allTransactionsProvider);
+    final history = ref.watch(financeHistoryProvider);
+    final budgets = ref.watch(budgetsProvider);
+    final categoryList = ref.watch(allCategoriesProvider());
+    final theme = Theme.of(context);
+    final size = WindowSizeClass.of(context);
+    final wide = WindowSizeClass.wide(context);
+    final name = PreferencesScope.of(context)?.name ?? '';
+    final categories = {
+      for (final item in categoryList.valueOrNull ?? <Category>[])
+        item.id: item,
+    };
+    final names = {
+      for (final item in accounts.valueOrNull ?? []) item.id: item.name,
+    };
+    final overview = history.valueOrNull?.months[month] ?? FinanceSummary();
+    final balance = accounts.valueOrNull
+        ?.where((item) => item.isActive)
+        .fold(
+          BigInt.zero,
+          (sum, item) => sum + BigInt.from(item.currentBalanceCents),
+        );
+    final upcoming =
+        (bills.valueOrNull ?? [])
+            .where((item) => item.status == 'pending')
+            .toList()
+          ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+    final pending = (transactions.valueOrNull ?? [])
+        .where((item) => item.status == 'pending')
+        .toList();
+    final recent = (transactions.valueOrNull ?? [])
+        .where((item) => firstOfMonth(item.date) == month)
+        .take(5);
+    final planned = BudgetProgress.forMonth(
+      budgets.valueOrNull ?? [],
+      month,
+      history.valueOrNull ?? FinanceHistory(),
+    );
+    final failed =
         accounts.hasError ||
         bills.hasError ||
         transactions.hasError ||
-        purchases.hasError;
-    final isReady =
-        accounts.hasValue &&
-        bills.hasValue &&
-        transactions.hasValue &&
-        purchases.hasValue;
-    final overview = isReady
-        ? DashboardOverview.calculate(
-            accounts: accounts.requireValue,
-            transactions: transactions.requireValue,
-            bills: bills.requireValue,
-            today: now,
-            cardPurchaseAmounts: purchases.requireValue
-                .where(
-                  (purchase) =>
-                      purchase.purchaseDate.year == month.year &&
-                      purchase.purchaseDate.month == month.month,
-                )
-                .map((purchase) => purchase.amountCents),
-          )
-        : null;
-
-    return Scaffold(
-      appBar: AppBar(title: const Text('Início'), centerTitle: true),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: colors.primaryContainer,
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Saldo atual',
-                  style: text.labelLarge?.copyWith(
-                    color: colors.onPrimaryContainer,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  overview == null
-                      ? '—'
-                      : formatBrlSum(overview.activeBalanceCents),
-                  style: text.headlineMedium?.copyWith(
-                    color: colors.onPrimaryContainer,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Contas ativas',
-                  style: text.bodySmall?.copyWith(
-                    color: colors.onPrimaryContainer,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Row(
+        history.hasError ||
+        budgets.hasError ||
+        categoryList.hasError;
+    final loading =
+        !accounts.hasValue ||
+        !bills.hasValue ||
+        !transactions.hasValue ||
+        !history.hasValue ||
+        !budgets.hasValue ||
+        !categoryList.hasValue;
+    final shortcuts = _QuickActions(
+      onNew: widget.onNew,
+      insideCard: size == WindowSizeClass.medium,
+    );
+    final essentials = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        MonthPicker(
+          month: month,
+          limitFuture: true,
+          onChanged: (value) => setState(() => _selectedMonth = value),
+        ),
+        const SizedBox(height: 4),
+        BalanceCard(
+          balance: balance,
+          income: overview.income,
+          expense: overview.expense,
+          shortcuts: size == WindowSizeClass.medium ? shortcuts : null,
+        ),
+        if (size != WindowSizeClass.medium) ...[
+          const SizedBox(height: 16),
+          shortcuts,
+        ],
+        if (history.hasValue && !failed) ...[
+          const SizedBox(height: 16),
+          AppSurface(child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 4,
             children: [
-              IconButton.outlined(
-                tooltip: 'Mês anterior',
-                onPressed: () => _changeMonth(month, -1, current),
-                icon: const Icon(Icons.chevron_left),
-              ),
-              Expanded(
-                child: Text(
-                  '${_months[month.month - 1]} de ${month.year}',
-                  textAlign: TextAlign.center,
-                  style: text.titleMedium,
-                ),
-              ),
-              IconButton.outlined(
-                tooltip: 'Próximo mês',
-                onPressed: month.isBefore(current)
-                    ? () => _changeMonth(month, 1, current)
-                    : null,
-                icon: const Icon(Icons.chevron_right),
-              ),
+              Text('Resultado do mês', style: theme.textTheme.titleSmall),
+              MoneyText.total(overview.result),
             ],
-          ),
-          const SizedBox(height: 12),
-          if (hasError)
-            Column(
-              children: [
-                const Text('Não foi possível carregar o resumo financeiro.'),
-                TextButton(
-                  onPressed: () {
-                    ref.invalidate(allAccountsProvider);
-                    ref.invalidate(allBillsProvider);
-                    ref.invalidate(dashboardTransactionsProvider(month));
-                    ref.invalidate(cardPurchasesProvider);
-                  },
-                  child: const Text('Tentar novamente'),
-                ),
-              ],
+          )),
+        ],
+      ],
+    );
+    final cleared = _Section(
+      title: 'Para onde foi seu dinheiro',
+      action: 'Ver tudo',
+      onAction: widget.onReports,
+      child: AppSurface(
+        child: CategoryChart(
+          summary: overview,
+          categories: categories,
+          limit: 5,
+        ),
+      ),
+    );
+    final plannedSection = _Section(
+      title: 'Orçamentos em andamento',
+      action: 'Planejar',
+      onAction: widget.onPlanning,
+      child: planned.isEmpty
+          ? AppSurface(
+              child: Text(
+                'Defina limites para acompanhar seus gastos neste mês.',
+                style: theme.textTheme.bodySmall,
+              ),
             )
-          else if (overview == null)
-            const Center(child: CircularProgressIndicator())
-          else ...[
-            _MetricPair(
-              first: _Metric(
-                title: 'Entradas',
-                value: formatBrlSum(overview.incomeCents),
-                icon: Icons.south_west,
-                color: colors.primary,
-              ),
-              second: _Metric(
-                title: 'Saídas',
-                value: formatBrlSum(overview.expenseCents),
-                icon: Icons.north_east,
-                color: colors.error,
-              ),
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                Widget card(BudgetProgress item) => BudgetCard(
+                  progress: item,
+                  category: categories[item.row.categoryId],
+                  compact: true,
+                  onTap: widget.onPlanning,
+                );
+                if (size == WindowSizeClass.compact) {
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final item in planned)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 12),
+                            child: SizedBox(width: 160, child: card(item)),
+                          ),
+                      ],
+                    ),
+                  );
+                }
+                final columns = constraints.maxWidth >= 530
+                    ? 3
+                    : constraints.maxWidth >= 340
+                    ? 2
+                    : 1;
+                final width =
+                    (constraints.maxWidth - (columns - 1) * 12) / columns;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final item in planned)
+                      SizedBox(width: width, child: card(item)),
+                  ],
+                );
+              },
             ),
-            const SizedBox(height: 8),
-            _Metric(
-              title: 'Resultado do mês',
-              value: formatBrlSum(overview.resultCents),
-              icon: Icons.equalizer,
-              color: overview.resultCents.isNegative
-                  ? colors.error
-                  : colors.primary,
-            ),
-            const SizedBox(height: 24),
-            Text('Contas a pagar', style: text.titleLarge),
-            const SizedBox(height: 8),
-            _MetricPair(
-              first: _Metric(
-                title: 'Vencidas (${overview.overdueCount})',
-                value: formatBrlSum(overview.overdueCents),
-                icon: Icons.event_busy_outlined,
-                color: colors.error,
-              ),
-              second: _Metric(
-                title: 'A vencer (${overview.upcomingCount})',
-                value: formatBrlSum(overview.upcomingCents),
-                icon: Icons.event_outlined,
-                color: colors.primary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            if (overview.pendingBills.isEmpty)
+    );
+    final scheduled = [
+      for (final item in upcoming)
+        (
+          title: item.name,
+          date: item.dueDate,
+          cents: item.amountCents,
+          open: widget.onOpenBills,
+        ),
+      for (final item in pending)
+        (
+          title: item.description ?? 'Lançamento agendado',
+          date: item.date,
+          cents: item.amountCents,
+          open: widget.onTransactions,
+        ),
+    ]..sort((a, b) => a.date.compareTo(b.date));
+    final due = _Section(
+      title: 'Próximos vencimentos',
+      child: AppSurface(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          children: [
+            if (scheduled.isEmpty)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Text('Nenhuma conta pendente.'),
-              )
-            else
-              for (final bill in overview.pendingBills.take(3))
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(bill.name),
-                  subtitle: Text(
-                    '${calendarDate(bill.dueDate).isBefore(calendarDate(now)) ? 'Vencida em' : 'Vence em'} '
-                    '${bill.dueDate.day}/${bill.dueDate.month}/${bill.dueDate.year}',
-                  ),
-                  trailing: Text(
-                    formatBrl(bill.amountCents),
-                    style: text.titleSmall,
+                padding: EdgeInsets.all(8),
+                child: Text('Nenhum vencimento pendente.'),
+              ),
+            for (final item in scheduled.take(3))
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const AppIcon(Symbols.event_rounded),
+                title: Text(item.title),
+                subtitle: Text(DateFormat.yMd('pt_BR').format(item.date)),
+                trailing: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 100),
+                  child: MoneyText(
+                    item.cents,
+                    alignment: Alignment.centerRight,
                   ),
                 ),
+                onTap: item.open,
+              ),
             Align(
               alignment: Alignment.centerLeft,
-              child: TextButton.icon(
+              child: TextButton(
                 onPressed: widget.onOpenBills,
-                icon: const Icon(Icons.arrow_forward),
-                label: const Text('Ver contas a pagar'),
+                child: const Text('Ver contas a pagar'),
               ),
             ),
           ],
-        ],
+        ),
+      ),
+    );
+    final latest = _Section(
+      title: 'Últimos lançamentos',
+      action: 'Ver todos',
+      onAction: widget.onTransactions,
+      child: AppSurface(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: recent.isEmpty
+            ? EmptyState(
+                title: 'Sem lançamentos no mês',
+                icon: Symbols.receipt_long_rounded,
+                compact: true,
+                actionLabel: transactions.valueOrNull?.isEmpty == true
+                    ? 'Adicionar primeiro lançamento'
+                    : 'Novo lançamento',
+                onAction: () => widget.onNew('expense'),
+              )
+            : Column(
+                children: [
+                  for (final entry in recent)
+                    TransactionTile(
+                      transaction: entry,
+                      accountName: names[entry.accountId] ?? 'Conta',
+                      category: categories[entry.categoryId],
+                      destinationAccountName: names[entry.destinationAccountId],
+                      onTap: widget.onTransactions,
+                    ),
+                ],
+              ),
+      ),
+    );
+
+    Widget loadState() => failed
+        ? EmptyState(
+            title: 'Não foi possível carregar o resumo.',
+            compact: true,
+            actionLabel: 'Tentar novamente',
+            onAction: () {
+              ref.invalidate(allAccountsProvider);
+              ref.invalidate(allBillsProvider);
+              ref.invalidate(allTransactionsProvider);
+              ref.invalidate(financeHistoryProvider);
+              ref.invalidate(budgetsProvider);
+              ref.invalidate(allCategoriesProvider());
+            },
+          )
+        : const Padding(
+            padding: EdgeInsets.all(24),
+            child: Center(child: CircularProgressIndicator()),
+          );
+
+    if (wide) {
+      return Scaffold(
+        appBar: AppBar(title: Text(name.isEmpty ? 'Início' : 'Olá, $name')),
+        body: AppContent(
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppLayout.margin(context),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 8,
+                  child: ListView(
+                    key: const PageStorageKey('início-principal'),
+                    padding: const EdgeInsets.only(bottom: 24),
+                    children: [
+                      essentials,
+                      const SizedBox(height: 20),
+                      if (failed || loading)
+                        loadState()
+                      else ...[
+                        cleared,
+                        plannedSection,
+                      ],
+                    ],
+                  ),
+                ),
+                SizedBox(width: size.gutter),
+                Expanded(
+                  flex: 4,
+                  child: ListView(
+                    key: const PageStorageKey('início-lateral'),
+                    padding: const EdgeInsets.only(bottom: 24),
+                    children: [
+                      if (!failed && !loading) ...[due, latest],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    return Scaffold(
+      body: AppContent(
+        child: CustomScrollView(
+          key: const PageStorageKey('início-principal'),
+          slivers: [
+            SliverAppBar(
+            pinned: MediaQuery.sizeOf(context).height < 480,
+            floating: true,
+              title: Text(
+                name.isEmpty ? 'Início' : 'Olá, $name',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              actions: [
+                IconButton(
+                  tooltip: 'Ajustes',
+                  onPressed: widget.onSettings,
+                  icon: const Icon(Symbols.settings_rounded),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ),
+            SliverPadding(
+              padding: AppLayout.pagePadding(context),
+              sliver: SliverList.list(
+                children: [
+                  essentials,
+                  const SizedBox(height: 20),
+                  if (failed || loading)
+                    loadState()
+                  else if (size == WindowSizeClass.medium)
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final width = (constraints.maxWidth - 16) / 2;
+                        if (width < 230)
+                          return Column(
+                            children: [cleared, plannedSection, due, latest],
+                          );
+                        return Wrap(
+                          spacing: 16,
+                          children: [
+                            for (final section in [
+                              cleared,
+                              plannedSection,
+                              due,
+                              latest,
+                            ])
+                              SizedBox(width: width, child: section),
+                          ],
+                        );
+                      },
+                    )
+                  else ...[
+                    cleared,
+                    plannedSection,
+                    due,
+                    latest,
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _MetricPair extends StatelessWidget {
-  const _MetricPair({required this.first, required this.second});
+class _Section extends StatelessWidget {
+  const _Section({
+    required this.title,
+    required this.child,
+    this.action,
+    this.onAction,
+  });
+  final String title;
+  final String? action;
+  final VoidCallback? onAction;
+  final Widget child;
 
-  final Widget first;
-  final Widget second;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(title, style: Theme.of(context).textTheme.titleLarge),
+            ),
+            if (action != null)
+              TextButton(onPressed: onAction, child: Text(action!)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        child,
+      ],
+    ),
+  );
+}
+
+class _QuickActions extends StatelessWidget {
+  const _QuickActions({required this.onNew, required this.insideCard});
+  final ValueChanged<String> onNew;
+  final bool insideCard;
 
   @override
   Widget build(BuildContext context) {
+    final tokens = AppColors.of(context);
+    final theme = Theme.of(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 310 ||
-            MediaQuery.textScalerOf(context).scale(16) > 23) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [first, const SizedBox(height: 8), second],
-          );
-        }
-        return Row(
+        final columns =
+            constraints.maxWidth < 300 ||
+                MediaQuery.textScalerOf(context).scale(12) > 16
+            ? 2
+            : 3;
+        final width = (constraints.maxWidth - (columns - 1) * 8) / columns;
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
-            Expanded(child: first),
-            const SizedBox(width: 8),
-            Expanded(child: second),
+            for (final (label, type, icon, color) in [
+              (
+                'Despesa',
+                'expense',
+                Symbols.arrow_downward_rounded,
+                tokens.expenseText,
+              ),
+              (
+                'Receita',
+                'income',
+                Symbols.arrow_upward_rounded,
+                tokens.incomeText,
+              ),
+              (
+                'Transferir',
+                'transfer',
+                Symbols.swap_horiz_rounded,
+                theme.colorScheme.primary,
+              ),
+            ])
+              SizedBox(
+                width: width,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(
+                      AppLayout.controlRadius,
+                    ),
+                    onTap: () => onNew(type),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Column(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor: insideCard
+                                ? AppColors.inkOnGradient
+                                : color.withValues(alpha: .14),
+                            child: Icon(icon, color: color, weight: 500),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            label,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: insideCard
+                                  ? AppColors.inkOnGradient
+                                  : null,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
           ],
         );
       },
-    );
-  }
-}
-
-class _Metric extends StatelessWidget {
-  const _Metric({
-    required this.title,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  final String title;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: color, size: 19),
-          const SizedBox(height: 8),
-          Text(title, style: theme.textTheme.labelLarge),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

@@ -1,5 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../../../../core/design/app_theme.dart';
+import '../../../../core/design/category_style.dart';
+import '../../../../core/design/components.dart';
+import '../../../../core/money.dart';
+import '../../../../core/providers/database_provider.dart';
+import '../../../budgets/budget_data.dart';
+import '../../../reports/finance_summary.dart';
 
 import '../../../../core/widgets/record_actions.dart';
 import '../../domain/entities/category.dart';
@@ -36,6 +45,19 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen>
         category?.type ?? (_tabController.index == 0 ? 'expense' : 'income');
     var parentId = category?.parentId;
     var saving = false;
+    var color = category?.color;
+    var icon = category?.icon;
+    final month = firstOfMonth(DateTime.now());
+    final currentBudget = ref
+        .read(budgetsProvider)
+        .valueOrNull
+        ?.where(
+          (item) => item.categoryId == category?.id && item.month == month,
+        )
+        .firstOrNull;
+    int? limit = currentBudget?.limitCents;
+    final db = ref.read(databaseProvider);
+    final budgets = ref.read(budgetRepositoryProvider);
     final repo = ref.read(categoryRepositoryProvider);
     final categories = [
       ...?ref.read(allCategoriesProvider(type: 'expense')).valueOrNull,
@@ -45,12 +67,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen>
         category != null &&
         categories.any((item) => item.parentId == category.id);
 
-    await showModalBottomSheet<void>(
+    await showAppBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      width: 480,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           final parents = categories.where(
@@ -135,10 +154,44 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen>
                         onChanged: (value) => setState(() => parentId = value),
                       ),
                     ],
+                    const SizedBox(height: 12),
+                    Text(
+                      'Ícone',
+                      style: Theme.of(context).textTheme.titleSmall,
+                    ),
+                    IconPalette(
+                      value: icon,
+                      onChanged: (value) => setState(() => icon = value),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Cor', style: Theme.of(context).textTheme.titleSmall),
+                    ColorPalette(
+                      value: color,
+                      onChanged: (value) => setState(() => color = value),
+                    ),
+                    if (selectedType == 'expense' &&
+                        (category?.isActive ?? true)) ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        initialValue: limit == null ? null : brlInput(limit!),
+                        keyboardType: const TextInputType.numberWithOptions(
+                          decimal: true,
+                        ),
+                        decoration: const InputDecoration(
+                          labelText: r'Limite mensal (R$), opcional',
+                        ),
+                        validator: (value) {
+                          if (value?.trim().isEmpty != false) return null;
+                          return (parseBrlCents(value) ?? 0) > 0
+                              ? null
+                              : 'Informe um limite maior que zero.';
+                        },
+                        onSaved: (value) => limit = parseBrlCents(value),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
-                      height: 48,
                       child: FilledButton(
                         onPressed: saving
                             ? null
@@ -152,15 +205,28 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen>
                                   name: name,
                                   type: selectedType,
                                   parentId: parentId,
-                                  color: category?.color,
-                                  icon: category?.icon,
+                                  color: color,
+                                  icon: icon,
                                 );
                                 try {
-                                  if (category == null) {
-                                    await repo.createCategory(edited);
-                                  } else {
-                                    await repo.updateCategory(edited);
-                                  }
+                                  await db.transaction(() async {
+                                    final id = category == null
+                                        ? await repo.createCategory(edited)
+                                        : category.id!;
+                                    if (category != null)
+                                      await repo.updateCategory(edited);
+                                    if (selectedType == 'expense' &&
+                                        limit != null &&
+                                        (category?.isActive ?? true)) {
+                                      await budgets.save(
+                                        category: id,
+                                        month: month,
+                                        limit: limit!,
+                                        carryOver:
+                                            currentBudget?.carryOver ?? false,
+                                      );
+                                    }
+                                  });
                                   if (context.mounted) Navigator.pop(context);
                                 } catch (error) {
                                   if (!context.mounted) return;
@@ -209,28 +275,26 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen>
   }
 
   Widget _buildList(WidgetRef ref, String type) {
+    ref.watch(budgetsProvider);
     final categoriesAsync = ref.watch(allCategoriesProvider(type: type));
+    final month = ref
+        .watch(financeHistoryProvider)
+        .valueOrNull
+        ?.months[firstOfMonth(DateTime.now())];
+    final totals = type == 'income'
+        ? month?.incomeByCategory
+        : month?.byCategory;
 
     return categoriesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, _) => Center(child: Text('Erro: $error')),
       data: (categories) {
         if (categories.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.category_outlined,
-                  size: 56,
-                  color: Theme.of(context).colorScheme.outline,
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Nenhuma categoria cadastrada',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ],
+          return const SingleChildScrollView(
+            child: EmptyState(
+              title: 'Nenhuma categoria cadastrada',
+              icon: Symbols.category_rounded,
+              message: 'Crie uma categoria para organizar seus lançamentos.',
             ),
           );
         }
@@ -238,18 +302,50 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen>
         final names = {
           for (final category in categories) category.id: category.name,
         };
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: categories.length,
-          itemBuilder: (context, index) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: CategoryCard(
-              category: categories[index],
-              parentName: names[categories[index].parentId],
-              onTap: () => _showCategoryForm(category: categories[index]),
-              onArchive: categories[index].isActive
-                  ? () => _archiveCategory(categories[index])
-                  : null,
+        return AppContent(
+          child: ReorderableListView.builder(
+            buildDefaultDragHandles: false,
+            padding: AppLayout.pagePadding(context).copyWith(bottom: 88),
+            itemCount: categories.length,
+            onReorderItem: (oldIndex, newIndex) async {
+              final ids = categories.map((item) => item.id!).toList();
+              final moved = ids.removeAt(oldIndex);
+              ids.insert(newIndex, moved);
+              try {
+                await ref
+                    .read(categoryRepositoryProvider)
+                    .reorderCategories(type, ids);
+              } catch (error) {
+                if (mounted)
+                  showRecordError(
+                    context,
+                    error,
+                    'Não foi possível reordenar as categorias.',
+                  );
+              }
+            },
+            itemBuilder: (context, index) => Padding(
+              key: ValueKey(categories[index].id),
+              padding: const EdgeInsets.only(bottom: 8),
+              child: CategoryCard(
+                category: categories[index],
+                total: totals?[categories[index].id] ?? BigInt.zero,
+                drag: ReorderableDragStartListener(
+                  index: index,
+                  child: const Tooltip(
+                    message: 'Arrastar para reordenar',
+                    child: SizedBox.square(
+                      dimension: 48,
+                      child: Icon(Symbols.drag_indicator_rounded),
+                    ),
+                  ),
+                ),
+                parentName: names[categories[index].parentId],
+                onTap: () => _showCategoryForm(category: categories[index]),
+                onArchive: categories[index].isActive
+                    ? () => _archiveCategory(categories[index])
+                    : null,
+              ),
             ),
           ),
         );
@@ -279,8 +375,9 @@ class _CategoriesScreenState extends ConsumerState<CategoriesScreen>
         children: [_buildList(ref, 'expense'), _buildList(ref, 'income')],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'nova-categoria',
         onPressed: _showCategoryForm,
-        icon: const Icon(Icons.add),
+        icon: const Icon(Symbols.add_rounded),
         label: const Text('Nova Categoria'),
       ),
     );

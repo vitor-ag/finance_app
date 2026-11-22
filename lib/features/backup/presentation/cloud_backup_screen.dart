@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../../../core/design/app_theme.dart';
+import '../../../core/design/components.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../data/android_drive_backup.dart';
@@ -89,9 +94,8 @@ class _CloudBackupScreenState extends ConsumerState<CloudBackupScreen> {
     if (!mounted) return null;
     if (backups.isEmpty) return 'Ainda não há backups nesta conta.';
     final heads = backupHeads(backups).map((file) => file.id).toSet();
-    final selection = await showModalBottomSheet<DriveBackup>(
+    final selection = await showAppBottomSheet<DriveBackup>(
       context: context,
-      showDragHandle: true,
       builder: (context) => SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,7 +120,9 @@ class _CloudBackupScreenState extends ConsumerState<CloudBackupScreen> {
                       : 'Versão anterior';
                   return ListTile(
                     leading: Icon(
-                      current ? Icons.cloud_done_outlined : Icons.history,
+                      current
+                          ? Symbols.cloud_done_rounded
+                          : Symbols.history_rounded,
                     ),
                     title: Text(_date(file.createdAt)),
                     subtitle: Text(
@@ -205,86 +211,91 @@ class _CloudBackupScreenState extends ConsumerState<CloudBackupScreen> {
     final disabled = _busy || (state == null && status.isLoading);
     return Scaffold(
       appBar: AppBar(title: const Text('Backup em nuvem')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          if (disabled) const LinearProgressIndicator(),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.cloud_outlined),
-            title: Text(state?.email ?? 'Google Drive'),
-            subtitle: Text(
-              state == null ? 'Nenhuma conta vinculada' : 'Conta vinculada',
-            ),
-            trailing: TextButton(
-              onPressed: disabled ? null : _connect,
-              child: Text(state == null ? 'Vincular' : 'Trocar conta'),
-            ),
-          ),
-          const Text(
-            'O Drive guarda as cópias criptografadas na área privada do app. '
-            'Elas ficam ocultas na lista de arquivos. Remover os dados do app pelo Drive pode excluir as cópias.',
-          ),
-          if (status.hasError)
-            const Padding(
-              padding: EdgeInsets.only(top: 12),
-              child: Text('Não foi possível abrir as configurações de backup.'),
-            ),
-          if (state != null) ...[
-            const SizedBox(height: 16),
-            SwitchListTile(
+      body: AppContent(
+        maxWidth: AppLayout.maxReading,
+        child: ListView(
+          padding: AppLayout.pagePadding(context),
+          children: [
+            if (disabled) const LinearProgressIndicator(),
+            ListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Sincronização automática'),
-              subtitle: const Text(
-                'Envia e importa alterações com internet. Em segundo plano, o Android escolhe quando executar.',
+              leading: const Icon(Symbols.cloud_rounded),
+              title: Text(state?.email ?? 'Google Drive'),
+              subtitle: Text(
+                state == null ? 'Nenhuma conta vinculada' : 'Conta vinculada',
               ),
-              value: state.automatic,
-              onChanged: disabled
-                  ? null
-                  : (enabled) => _configureAutomatic(enabled, state),
+              trailing: TextButton(
+                onPressed: disabled ? null : _connect,
+                child: Text(state == null ? 'Vincular' : 'Trocar conta'),
+              ),
             ),
-            Text(
-              'Último envio neste aparelho: ${state.lastUpload == null ? '—' : _date(state.lastUpload!)}',
+            const Text(
+              'O Drive guarda as cópias criptografadas na área privada do app. '
+              'Elas ficam ocultas na lista de arquivos. Remover os dados do app pelo Drive pode excluir as cópias.',
             ),
-            Text(
-              'Última sincronização concluída: ${state.lastSync == null ? '—' : _date(state.lastSync!)}',
-            ),
-            if (state.message case final message?)
+            if (status.hasError)
+              const Padding(
+                padding: EdgeInsets.only(top: 12),
+                child: Text(
+                  'Não foi possível abrir as configurações de backup.',
+                ),
+              ),
+            if (state != null) ...[
+              const SizedBox(height: 16),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Sincronização automática'),
+                subtitle: const Text(
+                  'Envia e importa alterações com internet. Em segundo plano, o Android escolhe quando executar.',
+                ),
+                value: state.automatic,
+                onChanged: disabled
+                    ? null
+                    : (enabled) => _configureAutomatic(enabled, state),
+              ),
+              Text(
+                'Último envio neste aparelho: ${state.lastUpload == null ? '—' : _date(state.lastUpload!)}',
+              ),
+              Text(
+                'Última sincronização concluída: ${state.lastSync == null ? '—' : _date(state.lastSync!)}',
+              ),
+              if (state.message case final message?)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Semantics(liveRegion: true, child: Text(message)),
+                ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: disabled ? null : () => _backupNow(state),
+                icon: const Icon(Symbols.cloud_upload_rounded),
+                label: const Text('Backup agora'),
+              ),
+              OutlinedButton.icon(
+                onPressed: disabled ? null : () => _restore(state),
+                icon: const Icon(Symbols.restore_rounded),
+                label: const Text('Restaurar backup'),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'O Drive mantém até $retainedBackupCount versões recentes após um envio confirmado. Versões concorrentes são preservadas até você escolher uma.',
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: disabled ? null : () => _connect(choose: false),
+                child: const Text('Autorizar novamente'),
+              ),
+              TextButton(
+                onPressed: disabled ? null : _disconnect,
+                child: const Text('Desvincular deste aparelho'),
+              ),
+            ],
+            if (_message case final message? when message != state?.message)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: 12),
                 child: Semantics(liveRegion: true, child: Text(message)),
               ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              onPressed: disabled ? null : () => _backupNow(state),
-              icon: const Icon(Icons.cloud_upload_outlined),
-              label: const Text('Backup agora'),
-            ),
-            OutlinedButton.icon(
-              onPressed: disabled ? null : () => _restore(state),
-              icon: const Icon(Icons.restore),
-              label: const Text('Restaurar backup'),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'O Drive mantém até $retainedBackupCount versões recentes após um envio confirmado. Versões concorrentes são preservadas até você escolher uma.',
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: disabled ? null : () => _connect(choose: false),
-              child: const Text('Autorizar novamente'),
-            ),
-            TextButton(
-              onPressed: disabled ? null : _disconnect,
-              child: const Text('Desvincular deste aparelho'),
-            ),
           ],
-          if (_message case final message? when message != state?.message)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Semantics(liveRegion: true, child: Text(message)),
-            ),
-        ],
+        ),
       ),
     );
   }

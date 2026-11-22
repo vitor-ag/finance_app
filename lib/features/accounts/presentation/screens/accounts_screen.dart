@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import 'package:material_symbols_icons/symbols.dart';
+
+import '../../../../core/design/app_theme.dart';
+import '../../../../core/design/category_style.dart';
+import '../../../../core/design/components.dart';
 import '../../../../core/money.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,7 +16,9 @@ import '../providers/account_providers.dart';
 import '../widgets/account_card.dart';
 
 class AccountsScreen extends ConsumerWidget {
-  const AccountsScreen({super.key});
+  const AccountsScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   Future<void> _showAccountForm(
     BuildContext context,
@@ -23,6 +30,8 @@ class AccountsScreen extends ConsumerWidget {
     var balance = 0;
     var selectedType = account?.type ?? 'digital';
     var saving = false;
+    var color = account?.color;
+    var icon = account?.icon;
     const types = {
       'digital': 'Conta Digital',
       'checking': 'Conta Corrente',
@@ -32,12 +41,9 @@ class AccountsScreen extends ConsumerWidget {
     };
     final repo = ref.read(accountRepositoryProvider);
 
-    await showModalBottomSheet<void>(
+    await showAppBottomSheet<void>(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      width: 480,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setState) {
           return Padding(
@@ -78,6 +84,7 @@ class AccountsScreen extends ConsumerWidget {
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
                       initialValue: selectedType,
+                      isExpanded: true,
                       decoration: const InputDecoration(
                         labelText: 'Tipo de Conta',
                         border: OutlineInputBorder(),
@@ -117,10 +124,25 @@ class AccountsScreen extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 16),
+                    Text('Cor', style: Theme.of(context).textTheme.titleSmall),
+                    ColorPalette(
+                      value: color,
+                      onChanged: (value) => setState(() => color = value),
+                    ),
+                    ExpansionTile(
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text('Ícone da conta'),
+                      children: [
+                        IconPalette(
+                          value: icon,
+                          onChanged: (value) => setState(() => icon = value),
+                        ),
+                      ],
+                    ),
                     const SizedBox(height: 20),
                     SizedBox(
                       width: double.infinity,
-                      height: 48,
                       child: FilledButton(
                         onPressed: saving
                             ? null
@@ -135,6 +157,8 @@ class AccountsScreen extends ConsumerWidget {
                                       Account(
                                         name: name,
                                         type: selectedType,
+                                        color: color,
+                                        icon: icon,
                                         initialBalanceCents: balance,
                                         currentBalanceCents: balance,
                                         createdAt: DateTime.now(),
@@ -145,6 +169,8 @@ class AccountsScreen extends ConsumerWidget {
                                       account.copyWith(
                                         name: name,
                                         type: selectedType,
+                                        color: color,
+                                        icon: icon,
                                       ),
                                     );
                                   }
@@ -197,151 +223,143 @@ class AccountsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final accountsAsync = ref.watch(allAccountsProvider);
+    final result = ref.watch(allAccountsProvider);
     final theme = Theme.of(context);
-
+    final size = WindowSizeClass.of(context);
     return Scaffold(
-      appBar: AppBar(
-        actions: [
-          IconButton(
-            tooltip: 'Cartões de crédito',
-            icon: const Icon(Icons.credit_card),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute<void>(
-                builder: (_) => const CreditCardsScreen(),
-              ),
-            ),
-          ),
-        ],
-        title: const Text(
-          'Minhas Contas',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: accountsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) =>
-            Center(child: Text('Erro ao carregar contas: $error')),
-        data: (accounts) {
-          final totalBalance = formatBrlTotal(
-            accounts
-                .where((item) => item.isActive)
-                .map((item) => item.currentBalanceCents),
-          );
-
-          return CustomScrollView(
-            slivers: [
-              // Header com Saldo Consolidado
-              SliverToBoxAdapter(
-                child: Container(
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.primaryContainer.withValues(
-                      alpha: 0.4,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: theme.colorScheme.primary.withValues(alpha: 0.2),
+      appBar: embedded
+          ? null
+          : AppBar(
+              title: const Text('Minhas contas'),
+              actions: [
+                IconButton(
+                  tooltip: 'Cartões de crédito',
+                  icon: const Icon(Symbols.credit_card_rounded),
+                  onPressed: () => Navigator.push<void>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const CreditCardsScreen(),
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ],
+            ),
+      body: AppContent(
+        child: result.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => EmptyState(
+            title: 'Não foi possível carregar as contas.',
+            actionLabel: 'Tentar novamente',
+            onAction: () => ref.invalidate(allAccountsProvider),
+          ),
+          data: (accounts) {
+            final active = accounts.where((item) => item.isActive).toList();
+            final archived = accounts.where((item) => !item.isActive).toList();
+            final total = active.fold(
+              BigInt.zero,
+              (sum, item) => sum + BigInt.from(item.currentBalanceCents),
+            );
+            Widget cards(List<Account> items) => LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 760
+                    ? 3
+                    : constraints.maxWidth >= 470
+                    ? 2
+                    : 1;
+                final width =
+                    (constraints.maxWidth - (columns - 1) * 12) / columns;
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final item in items)
+                      SizedBox(
+                        width: width,
+                        child: AccountCard(
+                          account: item,
+                          onTap: () =>
+                              _showAccountForm(context, ref, account: item),
+                          onArchive: item.isActive
+                              ? () => _archiveAccount(context, ref, item)
+                              : null,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            );
+            return ListView(
+              key: const PageStorageKey('contas'),
+              padding: AppLayout.pagePadding(context).copyWith(bottom: 88),
+              children: [
+                AppSurface(
+                  child: Row(
                     children: [
-                      Text(
-                        'Saldo Consolidado',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: theme.colorScheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        totalBalance,
-                        style: TextStyle(
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${accounts.where((account) => account.isActive).length} conta(s) ativa(s)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: theme.colorScheme.outline,
+                      const AppIcon(Symbols.account_balance_wallet_rounded),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Saldo das contas ativas',
+                              style: theme.textTheme.labelLarge,
+                            ),
+                            MoneyText.total(total, emphasis: true),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              // Lista ou Empty State
-              if (accounts.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.account_balance_wallet_outlined,
-                          size: 64,
-                          color: theme.colorScheme.outline,
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Nenhuma conta cadastrada',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Toque no botão + para adicionar sua primeira conta.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: theme.colorScheme.outline,
-                          ),
-                        ),
-                      ],
+                const SizedBox(height: 16),
+                if (active.isEmpty)
+                  EmptyState(
+                    title: 'Nenhuma conta ativa',
+                    compact: true,
+                    message: 'Adicione uma conta para acompanhar o saldo e registrar lançamentos.',
+                    actionLabel: size == WindowSizeClass.compact
+                        ? null
+                        : 'Nova conta',
+                    onAction: size == WindowSizeClass.compact
+                        ? null
+                        : () => _showAccountForm(context, ref),
+                  )
+                else
+                  cards(active),
+                if (archived.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  AppSurface(
+                    padding: EdgeInsets.zero,
+                    child: ExpansionTile(
+                      title: Text('Contas arquivadas (${archived.length})'),
+                      childrenPadding: const EdgeInsets.all(12),
+                      children: [cards(archived)],
                     ),
                   ),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final account = accounts[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: AccountCard(
-                          account: account,
-                          onTap: () =>
-                              _showAccountForm(context, ref, account: account),
-                          onArchive: account.isActive
-                              ? () => _archiveAccount(context, ref, account)
-                              : null,
-                        ),
-                      );
-                    }, childCount: accounts.length),
+                ],
+                if (size != WindowSizeClass.compact && active.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => _showAccountForm(context, ref),
+                      icon: const Icon(Symbols.add_rounded),
+                      label: const Text('Nova conta'),
+                    ),
                   ),
-                ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAccountForm(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Nova Conta'),
-      ),
+      floatingActionButton: size == WindowSizeClass.compact
+          ? FloatingActionButton.extended(
+              heroTag: 'nova-conta',
+              onPressed: () => _showAccountForm(context, ref),
+              icon: const Icon(Symbols.add_rounded),
+              label: const Text('Nova conta'),
+            )
+          : null,
     );
   }
 }

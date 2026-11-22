@@ -1,6 +1,7 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart' show DatabaseSchemaEntity, Value;
+import 'package:drift/drift.dart'
+    show DatabaseSchemaEntity, MigrationStrategy, Value;
 import 'package:drift/native.dart';
 import 'package:finance_app/data/local/database.dart';
 import 'package:finance_app/features/notifications/data/reminder_settings_store.dart';
@@ -14,7 +15,7 @@ void main() {
     );
     addTearDown(() => directory.delete(recursive: true));
     final file = File('${directory.path}/finance_app.sqlite');
-    final previous = _VersionSixDatabase(NativeDatabase(file));
+    final previous = _LegacyDatabase(NativeDatabase(file), 6);
     await previous
         .into(previous.accounts)
         .insert(
@@ -72,7 +73,7 @@ void main() {
     final version = await reopenedDb
         .customSelect('PRAGMA user_version')
         .getSingle();
-    expect(version.read<int>('user_version'), 7);
+    expect(version.read<int>('user_version'), 8);
     expect(
       (await reopenedDb.select(reopenedDb.accounts).getSingle())
           .currentBalanceCents,
@@ -166,7 +167,7 @@ void main() {
           GoalsCompanion.insert(
             name: 'Viagem',
             targetCents: 40000,
-            dueDate: DateTime(2027, 5, 10),
+            dueDate: Value(DateTime(2027, 5, 10)),
             accountId: Value(accountId),
           ),
         );
@@ -207,7 +208,7 @@ void main() {
               GoalsCompanion.insert(
                 name: 'Viagem',
                 targetCents: 100000,
-                dueDate: DateTime(2027, 1, 20),
+                dueDate: Value(DateTime(2027, 1, 20)),
                 savedCents: const Value(20000),
               ),
             );
@@ -243,23 +244,7 @@ void main() {
   );
 }
 
-class _VersionSixDatabase extends AppDatabase {
-  _VersionSixDatabase(super.executor) : super.forTesting();
-  @override
-  int get schemaVersion => 6;
-  @override
-  List<DatabaseSchemaEntity> get allSchemaEntities => super.allSchemaEntities
-      .where(
-        (entity) =>
-            entity != creditCards &&
-            entity != cardPurchases &&
-            entity != cardPayments &&
-            entity != cardInstallments,
-      )
-      .toList();
-}
-
-// Versions 3 and 4 already used cents. Version 4 added the goals table.
+// Keep older fixtures independent of columns introduced in the current schema.
 class _LegacyDatabase extends AppDatabase {
   _LegacyDatabase(super.executor, this.schemaVersion) : super.forTesting();
 
@@ -270,14 +255,47 @@ class _LegacyDatabase extends AppDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => super.allSchemaEntities
       .where(
         (entity) =>
-            entity != creditCards &&
-            entity != cardPurchases &&
-            entity != cardPayments &&
-            entity != cardInstallments &&
-            entity != billReminderSettings &&
+            entity != budgets &&
+            entity != goalMovements &&
+            (schemaVersion >= 7 ||
+                  !<DatabaseSchemaEntity>[
+                  creditCards,
+                  cardPurchases,
+                  cardPayments,
+                  cardInstallments,
+                ].contains(entity)) &&
+            (schemaVersion >= 5 || entity != billReminderSettings) &&
             (schemaVersion >= 4 || entity != goals),
       )
       .toList();
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (migrator) async {
+      await migrator.createAll();
+      await customStatement('ALTER TABLE categories DROP COLUMN position');
+      await customStatement('ALTER TABLE transactions DROP COLUMN note');
+      await customStatement('ALTER TABLE transactions DROP COLUMN photo');
+      await customStatement('ALTER TABLE recurrences DROP COLUMN entry_status');
+      await customStatement('ALTER TABLE recurrences DROP COLUMN note');
+      await customStatement(
+        'ALTER TABLE recurrences DROP COLUMN income_source',
+      );
+      if (schemaVersion >= 4) {
+        await customStatement('DROP TABLE goals');
+        await customStatement('''
+        CREATE TABLE goals (
+          id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          target_cents INTEGER NOT NULL,
+          saved_cents INTEGER NOT NULL DEFAULT 0,
+          due_date INTEGER NOT NULL,
+          account_id INTEGER REFERENCES accounts(id)
+        )
+      ''');
+      }
+    },
+  );
 }
 
 // Frozen schema from before bills and recurrences were registered in Drift.

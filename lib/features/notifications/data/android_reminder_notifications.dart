@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../domain/reminder_notifications.dart';
@@ -11,6 +13,16 @@ class AndroidReminderNotifications implements ReminderNotifications {
   Future<void>? _initialization;
 
   static const _channelId = 'bill_due_reminders';
+  static const _dailyId = 2;
+  static const _budgetId = 3;
+  static const _planning = NotificationDetails(
+    android: AndroidNotificationDetails(
+      'finance_planning',
+      'Planejamento',
+      channelDescription: 'Lembretes diários e alertas de orçamento',
+      visibility: NotificationVisibility.private,
+    ),
+  );
   static const _details = NotificationDetails(
     android: AndroidNotificationDetails(
       _channelId,
@@ -111,6 +123,58 @@ class AndroidReminderNotifications implements ReminderNotifications {
       'Notificação de teste',
       'Este é um teste dos lembretes de vencimento.',
       _details,
+    );
+  }
+
+  Future<void> setDailyReminder(bool enabled, int minuteOfDay) async {
+    await _ensureInitialized();
+    await _plugin.cancel(_dailyId);
+    if (!enabled || await _android.areNotificationsEnabled() != true) return;
+    tzdata.initializeTimeZones();
+    final zone = await const MethodChannel('finance_app/local_backup')
+        .invokeMethod<String>('timeZone');
+    final location = tz.getLocation(zone ?? 'UTC');
+    final now = tz.TZDateTime.now(location);
+    var next = tz.TZDateTime(
+      location,
+      now.year,
+      now.month,
+      now.day,
+      minuteOfDay ~/ 60,
+      minuteOfDay % 60,
+    );
+    if (!next.isAfter(now)) {
+      next = tz.TZDateTime(
+        location,
+        now.year,
+        now.month,
+        now.day + 1,
+        minuteOfDay ~/ 60,
+        minuteOfDay % 60,
+      );
+    }
+    await _plugin.zonedSchedule(
+      _dailyId,
+      'Lembrete diário',
+      'Reserve um momento para registrar seus lançamentos.',
+      next,
+      _planning,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.wallClockTime,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.time,
+    );
+  }
+
+  Future<void> showBudgetAlert(bool exceeded) async {
+    await _ensureInitialized();
+    await _plugin.show(
+      _budgetId,
+      'Alerta de orçamento',
+      exceeded
+          ? 'Você atingiu o limite de um orçamento mensal.'
+          : 'Um orçamento mensal chegou a 80% do limite.',
+      _planning,
     );
   }
 }

@@ -8,10 +8,12 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/money.dart';
 import 'tables/accounts_table.dart';
 import 'tables/bill_reminder_settings_table.dart';
+import 'tables/budgets_table.dart';
 import 'tables/bills_table.dart';
 import 'tables/categories_table.dart';
 import 'tables/credit_cards_table.dart';
 import 'tables/goals_table.dart';
+import 'tables/goal_movements_table.dart';
 import 'tables/recurrences_table.dart';
 import 'tables/transaction_revisions_table.dart';
 import 'tables/transactions_table.dart';
@@ -32,6 +34,8 @@ part 'database.g.dart';
     CardPurchases,
     CardPayments,
     CardInstallments,
+    Budgets,
+    GoalMovements,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -40,7 +44,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -63,9 +67,16 @@ class AppDatabase extends _$AppDatabase {
               await migrator.createTable(recurrences);
               await migrator.createTable(bills);
             } else {
-              await _migrateMoney(migrator, recurrences, {
-                'amount': recurrences.amountCents,
-              });
+              await _migrateMoney(
+                migrator,
+                recurrences,
+                {'amount': recurrences.amountCents},
+                newColumns: [
+                  recurrences.entryStatus,
+                  recurrences.note,
+                  recurrences.incomeSource,
+                ],
+              );
               await _migrateMoney(
                 migrator,
                 bills,
@@ -80,6 +91,8 @@ class AppDatabase extends _$AppDatabase {
               newColumns: [
                 transactions.incomeSource,
                 if (from == 1) transactions.recurrenceId,
+                transactions.note,
+                transactions.photo,
               ],
             );
             await migrator.createTable(transactionRevisions);
@@ -116,6 +129,23 @@ class AppDatabase extends _$AppDatabase {
       await migrator.createTable(cardPurchases);
       await migrator.createTable(cardPayments);
       await migrator.createTable(cardInstallments);
+    }
+    if (from < 8) {
+      await migrator.addColumn(categories, categories.position);
+      if (from >= 3) {
+        await migrator.addColumn(transactions, transactions.note);
+        await migrator.addColumn(transactions, transactions.photo);
+        await migrator.addColumn(recurrences, recurrences.entryStatus);
+        await migrator.addColumn(recurrences, recurrences.note);
+        await migrator.addColumn(recurrences, recurrences.incomeSource);
+      }
+      if (from >= 4) {
+        await migrator.alterTable(
+          TableMigration(goals, newColumns: [goals.icon]),
+        );
+      }
+      await migrator.createTable(budgets);
+      await migrator.createTable(goalMovements);
     }
   }
 

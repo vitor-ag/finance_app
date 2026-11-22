@@ -24,6 +24,7 @@ class BackupSnapshot {
   final Map<String, int> _sequences;
 
   bool get isEmpty => _rows.values.every((rows) => rows.isEmpty);
+  int get transactionCount => _rows['transactions']?.length ?? 0;
 
   List<int> encode() => utf8.encode(jsonEncode([_rows, _sequences]));
 
@@ -119,8 +120,10 @@ class BackupDatabase {
     });
   }
 
+  bool supportsVersion(int version) => version == schemaVersion || version == 7;
+
   BackupSnapshot decode(List<int> data, int version) {
-    if (version != schemaVersion) {
+    if (!supportsVersion(version)) {
       throw const BackupProblem('A versão do banco do backup é incompatível.');
     }
     try {
@@ -128,6 +131,22 @@ class BackupDatabase {
       if (document.length != 2) throw const FormatException();
       final encodedRows = document[0] as Map<String, dynamic>;
       final sequences = Map<String, int>.from(document[1] as Map);
+      if (version == 7) {
+        final additions = <String, List<Object?>>{
+          'categories': [0],
+          'goals': [null],
+          'transactions': [null, null],
+          'recurrences': ['paid', null, null],
+        };
+        for (final entry in additions.entries) {
+          encodedRows[entry.key] = [
+            for (final row in encodedRows[entry.key] as List)
+              [...row as List, ...entry.value],
+          ];
+        }
+        encodedRows['budgets'] = [];
+        encodedRows['goal_movements'] = [];
+      }
       final rows = <String, List<List<Object?>>>{};
       for (final table in db.allTables) {
         final columns = table.$columns;
@@ -168,16 +187,14 @@ class BackupDatabase {
   Future<bool> restore({
     required BackupSnapshot snapshot,
     required String expectedDigest,
-    required String account,
-    required BackupClock clock,
+    String? account,
+    BackupClock? clock,
     bool publish = false,
   }) async {
     final digest = await snapshot.digest();
     final restored = await db.transaction(() async {
       // Acquire the SQLite write lock before checking for intervening edits.
-      await db.customStatement(
-        'UPDATE cloud_backup_installation SET counter = counter WHERE id = 1',
-      );
+      await db.customStatement('UPDATE accounts SET id = id WHERE 0');
       if (await (await _capture()).digest() != expectedDigest) return false;
 
       await db.customStatement('PRAGMA defer_foreign_keys = ON');
@@ -218,7 +235,9 @@ class BackupDatabase {
           'A integridade do banco do backup é inválida.',
         );
       }
-      await mark(account, clock, publish ? '' : digest);
+      if (account != null && clock != null) {
+        await mark(account, clock, publish ? '' : digest);
+      }
       return true;
     });
     if (restored) refresh();

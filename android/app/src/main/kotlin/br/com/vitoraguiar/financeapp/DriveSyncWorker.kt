@@ -26,12 +26,16 @@ internal class DriveSyncWorker(context: Context, parameters: WorkerParameters) :
         loader.ensureInitializationComplete(applicationContext, null)
         val engine = FlutterEngine(applicationContext)
         val completion = CompletableDeferred<String>()
-        val bridge = GoogleDriveBridge(applicationContext, engine.dartExecutor.binaryMessenger) {
+        val local = inputData.getBoolean("local", false)
+        val driveBridge = if (local) null else GoogleDriveBridge(applicationContext, engine.dartExecutor.binaryMessenger) {
+            completion.complete(it)
+        }
+        val localBridge = if (!local) null else LocalBackupBridge(applicationContext, engine.dartExecutor.binaryMessenger) {
             completion.complete(it)
         }
         try {
             engine.dartExecutor.executeDartEntrypoint(
-                DartExecutor.DartEntrypoint(loader.findAppBundlePath(), "driveSyncWorker"),
+                DartExecutor.DartEntrypoint(loader.findAppBundlePath(), if (local) "localBackupWorker" else "driveSyncWorker"),
             )
             if (withTimeoutOrNull(TimeUnit.MINUTES.toMillis(8)) { completion.await() } == "done") {
                 Result.success()
@@ -39,7 +43,8 @@ internal class DriveSyncWorker(context: Context, parameters: WorkerParameters) :
                 Result.retry()
             }
         } finally {
-            bridge.close()
+            driveBridge?.close()
+            localBridge?.close()
             engine.destroy()
         }
     }
@@ -48,15 +53,19 @@ internal class DriveSyncWorker(context: Context, parameters: WorkerParameters) :
         private const val NAME = "finance-drive-sync"
         @Volatile var foreground = false
 
-        fun schedule(context: Context, enabled: Boolean) {
+        fun schedule(context: Context, enabled: Boolean, local: Boolean = false) {
             val manager = WorkManager.getInstance(context)
+            val name = if (local) "finance-local-backup" else NAME
             if (enabled) {
-                val work = PeriodicWorkRequestBuilder<DriveSyncWorker>(15, TimeUnit.MINUTES)
-                    .setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
-                    .build()
-                manager.enqueueUniquePeriodicWork(NAME, ExistingPeriodicWorkPolicy.KEEP, work)
+                val builder = PeriodicWorkRequestBuilder<DriveSyncWorker>(if (local) 6 else 15, if (local) TimeUnit.HOURS else TimeUnit.MINUTES)
+                if (local) {
+                    builder.setInputData(androidx.work.workDataOf("local" to true))
+                } else {
+                    builder.setConstraints(Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build())
+                }
+                manager.enqueueUniquePeriodicWork(name, ExistingPeriodicWorkPolicy.KEEP, builder.build())
             } else {
-                manager.cancelUniqueWork(NAME)
+                manager.cancelUniqueWork(name)
             }
         }
     }

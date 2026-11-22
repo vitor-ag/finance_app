@@ -48,7 +48,7 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
   }
 
   @override
-  Future<int> createRecurrence(Recurrence recurrence) {
+  Future<int> createRecurrence(Recurrence recurrence, {Transaction? first}) {
     validatePositiveCents(recurrence.amountCents);
     final start = calendarDate(recurrence.startDate);
     final end = recurrence.endDate == null
@@ -98,12 +98,47 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
               startDate: start,
               endDate: Value(end),
               maxOccurrences: Value(recurrence.maxOccurrences),
-              nextOccurrenceDate: start,
+              nextOccurrenceDate: first == null
+                  ? start
+                  : _advance(start, recurrence.frequency, day),
+              generatedCount: Value(first == null ? 0 : 1),
+              entryStatus: Value(first?.status ?? 'paid'),
+              note: Value(first?.note),
+              incomeSource: Value(first?.incomeSource),
             ),
           );
-      await _generateRecurrence(id, calendarDate(DateTime.now()));
+      if (first != null) {
+        await _transactions.createTransaction(first.copyWith(recurrenceId: id));
+      } else {
+        await _generateRecurrence(id, calendarDate(DateTime.now()));
+      }
       return id;
     });
+  }
+
+  @override
+  Future<void> updateRecurrence(Recurrence recurrence) {
+    validatePositiveCents(recurrence.amountCents);
+    final end = recurrence.endDate;
+    if (end != null &&
+        calendarDate(end).isBefore(calendarDate(recurrence.startDate))) {
+      throw StateError(
+        'O término precisa ser posterior ao início da recorrência.',
+      );
+    }
+    return (db.update(db.recurrences)..where(
+          (row) =>
+              row.id.equals(recurrence.id!) &
+              row.status.isIn(['active', 'paused']),
+        ))
+        .write(
+          RecurrencesCompanion(
+            name: Value(recurrence.name.trim()),
+            amountCents: Value(recurrence.amountCents),
+            description: Value(recurrence.description),
+            endDate: Value(end == null ? null : calendarDate(end)),
+          ),
+        );
   }
 
   @override
@@ -204,6 +239,9 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
         destinationAccountId: r.destinationAccountId,
         categoryId: r.categoryId,
         description: r.description ?? r.name,
+        note: r.note,
+        incomeSource: r.incomeSource,
+        status: r.entryStatus,
         recurrenceId: r.id,
         createdAt: DateTime.now(),
       ),

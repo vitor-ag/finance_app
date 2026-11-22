@@ -2,35 +2,65 @@ import 'dart:async';
 
 import 'package:drift/drift.dart' show TableUpdate;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'core/design/adaptive_scaffold.dart';
+import 'core/design/app_preferences.dart';
+import 'core/design/app_theme.dart';
+import 'core/providers/database_provider.dart';
 import 'data/local/database.dart';
-import 'features/accounts/presentation/screens/accounts_screen.dart';
+import 'features/budgets/planning_screen.dart';
+import 'features/reports/finance_summary.dart';
+import 'features/reports/reports_screen.dart';
+import 'features/settings/app_settings_screen.dart';
+import 'features/settings/onboarding_screen.dart';
 import 'features/backup/data/android_drive_backup.dart';
 import 'features/backup/data/backup_snapshot.dart';
 import 'features/backup/data/drive_sync.dart';
+import 'features/backup/data/local_backup.dart';
 import 'features/bills/data/repositories/bill_repository_impl.dart';
 import 'features/bills/presentation/providers/bill_providers.dart';
 import 'features/bills/presentation/screens/bills_screen.dart';
-import 'features/categories/presentation/screens/categories_screen.dart';
-import 'features/credit_cards/presentation/credit_cards_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
-import 'features/goals/presentation/screens/goals_screen.dart';
 import 'features/notifications/data/android_reminder_notifications.dart';
+import 'features/notifications/data/planning_reminders.dart';
 import 'features/notifications/data/reminder_settings_store.dart';
 import 'features/notifications/domain/bill_reminder_coordinator.dart';
 import 'features/notifications/presentation/providers/reminder_providers.dart';
-import 'features/notifications/presentation/screens/reminder_settings_screen.dart';
 import 'features/recurrences/presentation/providers/recurrence_providers.dart';
-import 'features/recurrences/presentation/screens/recurrences_screen.dart';
-import 'features/security/data/android_access.dart';
 import 'features/security/presentation/app_access_gate.dart';
-import 'features/security/presentation/security_settings_screen.dart';
 import 'features/transactions/presentation/screens/transactions_screen.dart';
 import 'features/transactions/presentation/widgets/transaction_form.dart';
 
-void main() {
-  runApp(const ProviderScope(child: MyApp()));
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  await initializeDateFormatting('pt_BR');
+  final preferences = AppPreferences(store: SharedPreferencesAsync());
+  await preferences.load();
+  runApp(ProviderScope(child: MyApp(preferences: preferences)));
+}
+
+@pragma('vm:entry-point')
+Future<void> localBackupWorker() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final db = AppDatabase();
+  var retry = false;
+  try {
+    await LocalBackup(BackupDatabase(db)).runAutomatic();
+  } catch (_) {
+    retry = true;
+  } finally {
+    try {
+      await db.close();
+    } finally {
+      await LocalBackup.completeWorker(retry: retry);
+    }
+  }
 }
 
 @pragma('vm:entry-point')
@@ -62,7 +92,9 @@ Future<void> driveSyncWorker() async {
 }
 
 class MyApp extends ConsumerStatefulWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.preferences});
+
+  final AppPreferences? preferences;
 
   @override
   ConsumerState<MyApp> createState() => _MyAppState();
@@ -70,6 +102,7 @@ class MyApp extends ConsumerStatefulWidget {
 
 class _MyAppState extends ConsumerState<MyApp> {
   late final AppLifecycleListener _lifecycle;
+  late final _preferences = widget.preferences ?? AppPreferences();
   StreamSubscription<Set<TableUpdate>>? _databaseChanges;
   Timer? _backupPoll;
   Timer? _afterEdit;
@@ -80,6 +113,7 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   void initState() {
     super.initState();
+    initializeDateFormatting('pt_BR');
     _lifecycle = AppLifecycleListener(
       onResume: _resume,
       onPause: _pause,
@@ -91,6 +125,13 @@ class _MyAppState extends ConsumerState<MyApp> {
   Future<void> _resume() async {
     if (!mounted || _foreground) return;
     _foreground = true;
+    if (_preferences.isPersistent) {
+      unawaited(
+        ref.read(localBackupProvider).runAutomatic().catchError((Object _) {
+          // Backup settings display the error for the configured folder.
+        }),
+      );
+    }
     final backup = ref.read(driveBackupProvider);
     if (backup != null) {
       // The WorkManager engine may have committed changes while this engine
@@ -174,29 +215,68 @@ class _MyAppState extends ConsumerState<MyApp> {
     _lifecycle.dispose();
     _pause();
     _databaseChanges?.cancel();
+    if (widget.preferences == null) _preferences.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     ref.watch(billReminderSyncProvider);
-    return MaterialApp(
-      title: 'Finance App',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.teal,
-        brightness: Brightness.light,
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: Colors.teal,
-        brightness: Brightness.dark,
-      ),
-      themeMode: ThemeMode.system,
-      builder: (context, child) => AppAccessGate(child: child!),
-      home: const RootScreen(),
+    ref.watch(planningAlertsProvider);
+    return ListenableBuilder(
+      listenable: _preferences,
+      builder: (context, _) {
+        final size = WindowSizeClass.of(context);
+        return PreferencesScope(
+          preferences: _preferences,
+          child: MaterialApp(
+            title: 'Finance App',
+            debugShowCheckedModeBanner: false,
+            locale: const Locale('pt', 'BR'),
+            supportedLocales: const [Locale('pt', 'BR')],
+            localizationsDelegates: GlobalMaterialLocalizations.delegates,
+            theme: appTheme(Brightness.light, size, _preferences.accent),
+            darkTheme: appTheme(Brightness.dark, size, _preferences.accent),
+            themeMode: _preferences.theme,
+            builder: (context, child) =>
+                DisplayFeatureSubScreen(child: AppAccessGate(child: child!)),
+            home: const _AppHome(),
+          ),
+        );
+      },
     );
+  }
+}
+
+final _existingAccountsProvider = FutureProvider<bool>((ref) async {
+  final db = ref.watch(databaseProvider);
+  return await (db.select(db.accounts)..limit(1)).getSingleOrNull() != null;
+});
+
+class _AppHome extends ConsumerWidget {
+  const _AppHome();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final preferences = PreferencesScope.of(context)!;
+    if (preferences.onboardingDone) return const RootScreen();
+    return ref
+        .watch(_existingAccountsProvider)
+        .when(
+          loading: () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
+          error: (_, _) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () => ref.invalidate(_existingAccountsProvider),
+                child: const Text('Tentar abrir dados locais novamente'),
+              ),
+            ),
+          ),
+          data: (existing) => existing
+              ? const RootScreen()
+              : OnboardingScreen(preferences: preferences),
+        );
   }
 }
 
@@ -207,116 +287,123 @@ class RootScreen extends StatefulWidget {
   State<RootScreen> createState() => _RootScreenState();
 }
 
-class _RootScreenState extends State<RootScreen> {
+class _RootScreenState extends State<RootScreen>
+    with SingleTickerProviderStateMixin {
+  final _transactions = GlobalKey<TransactionsScreenState>();
+  final _visited = {0};
+  late final _animation = AnimationController(
+    vsync: this,
+    duration: AppLayout.motion,
+    value: 1,
+  );
   int _index = 0;
-  static const _quickActionIndex = 2;
+  double _direction = 1;
+  bool _creating = false;
+  bool _settingsOpen = false;
+  (Period, int?)? _pendingCategory;
 
-  void _openPage(Widget page) {
-    Navigator.push<void>(context, MaterialPageRoute(builder: (_) => page));
+  @override
+  void dispose() {
+    _animation.dispose();
+    super.dispose();
+  }
+
+  void _select(int index) {
+    if (index == _index) return;
+    setState(() {
+      _direction = index > _index ? 1 : -1;
+      _index = index;
+      _visited.add(index);
+    });
+    _animation.forward(from: 0);
+  }
+
+  Future<void> _new([String type = 'expense']) async {
+    if (_creating) return;
+    setState(() => _creating = true);
+    await showTransactionForm(
+      context,
+      type: type,
+      onSaved: (id) => _transactions.currentState?.highlight(id),
+    );
+    if (mounted) setState(() => _creating = false);
+  }
+
+  Future<void> _settings() async {
+    if (_settingsOpen) return;
+    _settingsOpen = true;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const AppSettingsScreen()),
+    );
+    _settingsOpen = false;
+  }
+
+  void _search() {
+    _select(1);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _transactions.currentState?.focusSearch(),
+    );
+  }
+
+  void _openCategory(Period period, int? id) {
+    _pendingCategory = (period, id);
+    _select(1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_pendingCategory case final selection?) {
+        _transactions.currentState?.openCategory(selection.$1, selection.$2);
+        _pendingCategory = null;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: switch (_index) {
-        0 => DashboardScreen(onOpenBills: () => _openPage(const BillsScreen())),
-        1 => const TransactionsScreen(),
-        3 => const AccountsScreen(),
-        _ => _MoreScreen(onOpenPage: _openPage),
-      },
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (index) {
-          if (index == _quickActionIndex) {
-            showTransactionForm(context);
-          } else {
-            setState(() => _index = index);
-          }
-        },
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Início',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.swap_vert),
-            selectedIcon: Icon(Icons.swap_vert),
-            label: 'Lançamentos',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.add_circle, size: 32),
-            label: 'Novo',
-            tooltip: 'Novo lançamento',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
-            label: 'Contas',
-          ),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Mais'),
-        ],
+    final reduced = MediaQuery.disableAnimationsOf(context);
+    final curved = _animation.drive(CurveTween(curve: Curves.easeOutCubic));
+    final pages = [
+      DashboardScreen(
+        onOpenBills: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute(builder: (_) => const BillsScreen()),
+        ),
+        onSettings: _settings,
+        onNew: _new,
+        onReports: () => _select(3),
+        onPlanning: () => _select(2),
+        onTransactions: () => _select(1),
       ),
-    );
-  }
-}
-
-class _MoreScreen extends ConsumerWidget {
-  const _MoreScreen({required this.onOpenPage});
-
-  final ValueChanged<Widget> onOpenPage;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Mais'), centerTitle: true),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        children: [
-          ListTile(
-            leading: const Icon(Icons.credit_card),
-            title: const Text('Cartões de crédito'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => onOpenPage(const CreditCardsScreen()),
+      TransactionsScreen(key: _transactions),
+      const PlanningScreen(),
+      ReportsScreen(onCategory: _openCategory),
+    ];
+    return AdaptiveScaffold(
+      index: _index,
+      onSelect: _select,
+      onNew: _new,
+      onSettings: _settings,
+      onSearch: _search,
+      creating: _creating,
+      body: FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween(
+            begin: Offset(reduced ? 0 : .045 * _direction, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: IndexedStack(
+            index: _index,
+            children: [
+              for (final (index, page) in pages.indexed)
+                TickerMode(
+                  enabled: _index == index,
+                  child: _visited.contains(index)
+                      ? page
+                      : const SizedBox.shrink(),
+                ),
+            ],
           ),
-          ListTile(
-            leading: const Icon(Icons.flag_outlined),
-            title: const Text('Metas financeiras'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => onOpenPage(const GoalsScreen()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.receipt_long_outlined),
-            title: const Text('Contas a pagar'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => onOpenPage(const BillsScreen()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.autorenew),
-            title: const Text('Recorrências'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => onOpenPage(const RecurrencesScreen()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.notifications_outlined),
-            title: const Text('Notificações'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => onOpenPage(const ReminderSettingsScreen()),
-          ),
-          ListTile(
-            leading: const Icon(Icons.category_outlined),
-            title: const Text('Categorias'),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => onOpenPage(const CategoriesScreen()),
-          ),
-          if (ref.watch(localAccessProvider) != null)
-            ListTile(
-              leading: const Icon(Icons.settings_outlined),
-              title: const Text('Configurações'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => onOpenPage(const SettingsScreen()),
-            ),
-        ],
+        ),
       ),
     );
   }

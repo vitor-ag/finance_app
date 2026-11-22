@@ -40,4 +40,7 @@ class Recurrences extends Table {
   TextColumn get status => text().withDefault(const Constant('active'))();
 
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get entryStatus => text().withDefault(const Constant('paid'))();
+  TextColumn get note => text().nullable()();
+  TextColumn get incomeSource => text().nullable()();
 }

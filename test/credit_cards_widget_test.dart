@@ -6,10 +6,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'widget_test.dart' show compactViewport, money, openSettingsPage;
+
 void main() {
   testWidgets('create a card, register a purchase and pay the statement', (
     tester,
   ) async {
+    compactViewport(tester);
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     await db
         .into(db.accounts)
@@ -21,11 +24,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Mais'));
-    await tester.pumpAndSettle();
+    await openSettingsPage(tester, 'Contas');
     await tester.tap(find.text('Cartões de crédito'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Cartão'));
+    await tester.tap(find.text('Novo cartão'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'Nome'),
@@ -47,7 +49,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Meu cartão'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Compra'));
+    await tester.tap(find.text('Nova compra'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextField, 'Descrição'),
@@ -59,7 +61,7 @@ void main() {
     );
     await tester.tap(find.text('Salvar'));
     await tester.pumpAndSettle();
-    expect(find.text('Limite disponível R\$ 400,00'), findsOneWidget);
+    expect(money('R\$ 400,00'), findsOneWidget);
     await tester.tap(find.byType(ExpansionTile).first);
     await tester.pumpAndSettle();
     expect(find.text('Mercado'), findsOneWidget);
@@ -75,14 +77,14 @@ void main() {
       (await db.select(db.accounts).getSingle()).currentBalanceCents,
       -10000,
     );
-    expect(find.text('Limite disponível R\$ 500,00'), findsOneWidget);
-    await tester.pageBack();
+    expect(money('R\$ 500,00'), findsNWidgets(2));
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    await tester.pageBack();
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Início'));
+    await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
-    expect(find.text('R\$ 100,00'), findsOneWidget);
+    expect(money('−R\$ 100,00'), findsAtLeastNWidgets(1));
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     await db.close();

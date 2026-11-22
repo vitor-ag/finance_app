@@ -24,6 +24,8 @@ class TransactionRepositoryImpl implements TransactionRepository {
       destinationAccountId: row.destinationAccountId,
       categoryId: row.categoryId,
       description: row.description,
+      note: row.note,
+      photo: row.photo,
       incomeSource: row.incomeSource,
       status: row.status,
       recurrenceId: row.recurrenceId,
@@ -100,6 +102,8 @@ class TransactionRepositoryImpl implements TransactionRepository {
           destinationAccountId: data['destinationAccountId'] as int?,
           categoryId: data['categoryId'] as int?,
           description: data['description'] as String?,
+          note: data['note'] as String?,
+          photo: data['photo'] as String?,
           incomeSource: data['incomeSource'] as String?,
           status: data['status'] as String,
           recurrenceId: data['recurrenceId'] as int?,
@@ -125,6 +129,8 @@ class TransactionRepositoryImpl implements TransactionRepository {
               'destinationAccountId': entry.destinationAccountId,
               'categoryId': entry.categoryId,
               'description': entry.description,
+              'note': entry.note,
+              'photo': entry.photo,
               'incomeSource': entry.incomeSource,
               'status': entry.status,
               'recurrenceId': entry.recurrenceId,
@@ -151,6 +157,8 @@ class TransactionRepositoryImpl implements TransactionRepository {
               destinationAccountId: Value(transaction.destinationAccountId),
               categoryId: Value(transaction.categoryId),
               description: Value(transaction.description),
+              note: Value(transaction.note),
+              photo: Value(transaction.photo),
               incomeSource: Value(_incomeSource(transaction)),
               status: Value(transaction.status),
               recurrenceId: Value(transaction.recurrenceId),
@@ -188,6 +196,8 @@ class TransactionRepositoryImpl implements TransactionRepository {
           destinationAccountId: Value(transaction.destinationAccountId),
           categoryId: Value(transaction.categoryId),
           description: Value(transaction.description),
+          note: Value(transaction.note),
+          photo: Value(transaction.photo),
           incomeSource: Value(_incomeSource(transaction)),
           status: Value(transaction.status),
         ),
@@ -206,6 +216,28 @@ class TransactionRepositoryImpl implements TransactionRepository {
       await _applyBalanceEffect(entry, reverse: true);
       await (db.update(db.transactions)..where((tbl) => tbl.id.equals(id)))
           .write(TransactionsCompanion(deletedAt: Value(DateTime.now())));
+    });
+  }
+
+  @override
+  Future<void> deleteRecurrenceEntries(int recurrenceId, {DateTime? from}) {
+    return db.transaction(() async {
+      await (db.update(db.recurrences)
+            ..where((row) => row.id.equals(recurrenceId)))
+          .write(const RecurrencesCompanion(status: Value('cancelled')));
+      final entries =
+          await (db.select(db.transactions)..where(
+                (row) =>
+                    row.recurrenceId.equals(recurrenceId) &
+                    row.deletedAt.isNull() &
+                    (from == null
+                        ? const Constant(true)
+                        : row.date.isBiggerOrEqualValue(from)),
+              ))
+              .get();
+      for (final entry in entries) {
+        await deleteTransaction(entry.id);
+      }
     });
   }
 

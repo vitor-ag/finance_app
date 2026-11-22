@@ -8,6 +8,8 @@ class Transaction {
   final int? destinationAccountId; // only for transfers
   final int? categoryId; // not used for transfers
   final String? description;
+  final String? note;
+  final String? photo;
   final String? incomeSource;
   final String status; // 'pending', 'paid', 'cancelled'
   final int? recurrenceId;
@@ -23,6 +25,8 @@ class Transaction {
     this.destinationAccountId,
     this.categoryId,
     this.description,
+    this.note,
+    this.photo,
     this.incomeSource,
     this.status = 'paid',
     this.recurrenceId,
@@ -39,6 +43,8 @@ class Transaction {
     int? destinationAccountId,
     int? categoryId,
     String? description,
+    String? note,
+    String? photo,
     String? incomeSource,
     String? status,
     int? recurrenceId,
@@ -54,6 +60,8 @@ class Transaction {
       destinationAccountId: destinationAccountId ?? this.destinationAccountId,
       categoryId: categoryId ?? this.categoryId,
       description: description ?? this.description,
+      note: note ?? this.note,
+      photo: photo ?? this.photo,
       incomeSource: incomeSource ?? this.incomeSource,
       status: status ?? this.status,
       recurrenceId: recurrenceId ?? this.recurrenceId,

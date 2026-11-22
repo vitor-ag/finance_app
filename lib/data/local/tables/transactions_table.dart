@@ -38,4 +38,7 @@ class Transactions extends Table {
 
   // soft delete
   DateTimeColumn get deletedAt => dateTime().nullable()();
+
+  TextColumn get note => text().nullable()();
+  TextColumn get photo => text().nullable()();
 }

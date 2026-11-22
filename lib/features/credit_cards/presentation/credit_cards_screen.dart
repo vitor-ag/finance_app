@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../../core/design/app_theme.dart';
+import '../../../core/design/components.dart';
 import '../../../core/money.dart';
 import '../../../data/local/database.dart';
 import '../../accounts/presentation/providers/account_providers.dart';
@@ -8,47 +12,95 @@ import '../../categories/presentation/providers/category_providers.dart';
 import 'credit_card_providers.dart';
 
 class CreditCardsScreen extends ConsumerWidget {
-  const CreditCardsScreen({super.key});
+  const CreditCardsScreen({super.key, this.embedded = false});
+
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final cards = ref.watch(creditCardsProvider);
+    final purchases = ref.watch(cardPurchasesProvider).valueOrNull ?? [];
+    final installments = ref.watch(cardInstallmentsProvider).valueOrNull ?? [];
+    final purchaseCards = {for (final item in purchases) item.id: item.cardId};
+    final used = <int, int>{};
+    for (final row in installments.where((item) => item.paymentId == null)) {
+      final id = purchaseCards[row.purchaseId];
+      if (id != null) {
+        used.update(
+          id,
+          (amount) => amount + row.amountCents,
+          ifAbsent: () => row.amountCents,
+        );
+      }
+    }
     return Scaffold(
-      appBar: AppBar(title: const Text('Cartões de crédito')),
+      appBar: embedded ? null : AppBar(title: const Text('Cartões de crédito')),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'novo-cartao',
         onPressed: () => _cardForm(context, ref),
-        icon: const Icon(Icons.add),
-        label: const Text('Cartão'),
+        icon: const Icon(Symbols.add_rounded),
+        label: const Text('Novo cartão'),
       ),
-      body: cards.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (_, _) =>
-            const Center(child: Text('Não foi possível carregar os cartões.')),
-        data: (items) => items.isEmpty
-            ? const Center(child: Text('Nenhum cartão cadastrado.'))
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                itemBuilder: (context, index) {
-                  final card = items[index];
-                  return Card(
-                    child: ListTile(
-                      leading: const Icon(Icons.credit_card),
-                      title: Text(card.name),
-                      subtitle: Text(
-                        '${card.isActive ? 'Ativo' : 'Arquivado'} · limite ${formatBrl(card.limitCents)}',
-                      ),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute<void>(
-                          builder: (_) => CardDetailsScreen(cardId: card.id),
+      body: AppContent(
+        child: cards.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (_, _) => const Center(
+            child: Text('Não foi possível carregar os cartões.'),
+          ),
+          data: (items) => items.isEmpty
+              ? const SingleChildScrollView(
+                  child: EmptyState(
+                    title: 'Nenhum cartão cadastrado.',
+                    icon: Symbols.credit_card_rounded,
+                  ),
+                )
+              : ListView.builder(
+                  padding: AppLayout.pagePadding(context).copyWith(bottom: 88),
+                  itemCount: items.length,
+                  itemBuilder: (context, index) {
+                    final card = items[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: AppSurface(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute<void>(
+                            builder: (_) => CardDetailsScreen(cardId: card.id),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                const AppIcon(Symbols.credit_card_rounded),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    card.name,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                ),
+                                const Icon(Symbols.chevron_right_rounded),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '${card.isActive ? 'Ativo' : 'Arquivado'} · vence dia ${card.dueDay}',
+                            ),
+                            _CardLimits(
+                              limit: card.limitCents,
+                              used: used[card.id] ?? 0,
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    );
+                  },
+                ),
+        ),
       ),
     );
   }
@@ -211,7 +263,7 @@ class CardDetailsScreen extends ConsumerWidget {
           IconButton(
             tooltip: 'Editar cartão',
             onPressed: () => _cardForm(context, ref, card: card),
-            icon: const Icon(Icons.edit_outlined),
+            icon: const Icon(Symbols.edit_rounded),
           ),
           if (card.isActive)
             IconButton(
@@ -242,7 +294,7 @@ class CardDetailsScreen extends ConsumerWidget {
                       .archiveCard(card.id);
                 }
               },
-              icon: const Icon(Icons.archive_outlined),
+              icon: const Icon(Symbols.archive_rounded),
             ),
           if (!card.isActive)
             IconButton(
@@ -250,86 +302,136 @@ class CardDetailsScreen extends ConsumerWidget {
               onPressed: () => ref
                   .read(creditCardRepositoryProvider)
                   .reactivateCard(card.id),
-              icon: const Icon(Icons.unarchive_outlined),
+              icon: const Icon(Symbols.unarchive_rounded),
             ),
         ],
       ),
       floatingActionButton: card.isActive
           ? FloatingActionButton.extended(
               onPressed: () => _purchaseForm(context, ref, card),
-              icon: const Icon(Icons.add),
-              label: const Text('Compra'),
+              icon: const Icon(Symbols.add_rounded),
+              heroTag: 'nova-compra',
+              label: const Text('Nova compra'),
             )
           : null,
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-        children: [
-          Text(
-            'Limite disponível ${formatBrl(card.limitCents - used)}',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text(
-            'Utilizado ${formatBrl(used)} · limite ${formatBrl(card.limitCents)}',
-          ),
-          Text(
-            'Fechamento dia ${card.closingDay} · vencimento dia ${card.dueDay}',
-          ),
-          const SizedBox(height: 20),
-          Text('Faturas', style: Theme.of(context).textTheme.titleLarge),
-          if (dates.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 20),
-              child: Text('Nenhuma compra registrada.'),
-            ),
-          for (final date in dates) ...[
-            Builder(
-              builder: (context) {
-                final rows = cardInstallments
-                    .where((item) => item.closingDate == date)
-                    .toList();
-                final total = rows.fold<int>(
-                  0,
-                  (sum, item) => sum + item.amountCents,
-                );
-                final pending = rows.any((item) => item.paymentId == null);
-                final due = rows.first.dueDate;
-                return Card(
-                  child: ExpansionTile(
-                    title: Text(
-                      'Vencimento ${due.day}/${due.month}/${due.year}',
-                    ),
-                    subtitle: Text(
-                      '${pending ? 'Pendente' : 'Paga'} · fechamento ${date.day}/${date.month}/${date.year}',
-                    ),
-                    trailing: Text(formatBrl(total)),
-                    children: [
-                      for (final item in rows)
-                        ListTile(
-                          title: Text(
-                            cardPurchases[item.purchaseId]!.description,
-                          ),
-                          subtitle: Text(
-                            'Parcela ${item.number}/${cardPurchases[item.purchaseId]!.installmentCount}',
-                          ),
-                          trailing: Text(formatBrl(item.amountCents)),
-                        ),
-                      if (pending)
-                        TextButton.icon(
-                          onPressed: () =>
-                              _payStatement(context, ref, card, date),
-                          icon: const Icon(Icons.check),
-                          label: const Text('Pagar fatura'),
-                        ),
-                    ],
+      body: AppContent(
+        maxWidth: AppLayout.maxReading,
+        child: ListView(
+          padding: AppLayout.pagePadding(context).copyWith(bottom: 88),
+          children: [
+            AppSurface(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Limite disponível',
+                    style: Theme.of(context).textTheme.labelLarge,
                   ),
-                );
-              },
+                  MoneyText(card.limitCents - used, emphasis: true),
+                  _CardLimits(limit: card.limitCents, used: used),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Fechamento dia ${card.closingDay} · vencimento dia ${card.dueDay}',
+                  ),
+                ],
+              ),
             ),
+            const SizedBox(height: 20),
+            Text('Faturas', style: Theme.of(context).textTheme.titleLarge),
+            if (dates.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Text('Nenhuma compra registrada.'),
+              ),
+            for (final date in dates) ...[
+              Builder(
+                builder: (context) {
+                  final rows = cardInstallments
+                      .where((item) => item.closingDate == date)
+                      .toList();
+                  final total = rows.fold<int>(
+                    0,
+                    (sum, item) => sum + item.amountCents,
+                  );
+                  final pending = rows.any((item) => item.paymentId == null);
+                  final due = rows.first.dueDate;
+                  return Card(
+                    child: ExpansionTile(
+                      title: Text(
+                        'Vencimento ${DateFormat.yMd('pt_BR').format(due)}',
+                      ),
+                      subtitle: Text(
+                        '${pending ? 'Pendente' : 'Paga'} · fechamento ${DateFormat.yMd('pt_BR').format(date)}',
+                      ),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: MoneyText(total, emphasis: true),
+                        ),
+                        for (final item in rows)
+                          ListTile(
+                            title: Text(
+                              cardPurchases[item.purchaseId]!.description,
+                            ),
+                            subtitle: Text(
+                              'Parcela ${item.number}/${cardPurchases[item.purchaseId]!.installmentCount}',
+                            ),
+                            trailing: SizedBox(
+                              width: 100,
+                              child: MoneyText(
+                                item.amountCents,
+                                alignment: Alignment.centerRight,
+                              ),
+                            ),
+                          ),
+                        if (pending)
+                          TextButton.icon(
+                            onPressed: () =>
+                                _payStatement(context, ref, card, date),
+                            icon: const Icon(Symbols.check_rounded),
+                            label: const Text('Pagar fatura'),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
+}
+
+class _CardLimits extends StatelessWidget {
+  const _CardLimits({required this.limit, required this.used});
+  final int limit, used;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 16,
+        runSpacing: 4,
+        children: [
+          for (final (label, value) in [('Usado', used), ('Limite', limit)])
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelMedium),
+                MoneyText(value),
+              ],
+            ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      BudgetProgressBar(progress: used / limit, label: 'Limite utilizado'),
+    ],
+  );
 }
 
 Future<void> _purchaseForm(
@@ -383,6 +485,7 @@ Future<void> _purchaseForm(
               ),
               DropdownButtonFormField<int>(
                 initialValue: categoryId,
+                isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Categoria'),
                 items: [
                   const DropdownMenuItem(
@@ -480,6 +583,7 @@ Future<void> _payStatement(
         title: const Text('Pagar fatura'),
         content: DropdownButtonFormField<int>(
           initialValue: accountId,
+          isExpanded: true,
           decoration: const InputDecoration(labelText: 'Conta de pagamento'),
           items: [
             for (final account in accounts)

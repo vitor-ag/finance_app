@@ -42,7 +42,7 @@ void main() {
       final access = LocalAccess(store: store, biometrics: FakeAppBiometrics());
       await _pumpApp(tester, access);
 
-      expect(find.text('Desbloquear Finance App'), findsOneWidget);
+      expect(find.text('Bem-vindo de volta'), findsOneWidget);
       expect(find.text('Conteúdo financeiro'), findsNothing);
       await tester.runAsync(() => access.unlockWithPassword('minha senha'));
       await tester.pumpAndSettle();
@@ -68,7 +68,7 @@ void main() {
       _leave(tester);
       _resume(tester);
       await tester.pumpAndSettle();
-      expect(find.text('Desbloquear Finance App'), findsOneWidget);
+      expect(find.text('Bem-vindo de volta'), findsOneWidget);
       expect(find.text('Alterar senha'), findsNothing);
       expect(find.text('Conteúdo financeiro'), findsNothing);
     },

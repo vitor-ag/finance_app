@@ -10,6 +10,7 @@ import io.flutter.embedding.engine.FlutterEngine
 class MainActivity : FlutterFragmentActivity() {
     private var appBiometrics: AppBiometrics? = null
     private var googleDrive: GoogleDriveBridge? = null
+    private var localBackup: LocalBackupBridge? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,11 +26,13 @@ class MainActivity : FlutterFragmentActivity() {
         super.configureFlutterEngine(flutterEngine)
         appBiometrics = AppBiometrics(this, flutterEngine.dartExecutor.binaryMessenger)
         googleDrive = GoogleDriveBridge(this, flutterEngine.dartExecutor.binaryMessenger, this)
+        localBackup = LocalBackupBridge(this, flutterEngine.dartExecutor.binaryMessenger, this)
     }
 
     @Deprecated("Called by Google Play services account and authorization UI")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (googleDrive?.onActivityResult(requestCode, resultCode, data) != true) {
+        if (localBackup?.onActivityResult(requestCode, resultCode, data) != true &&
+            googleDrive?.onActivityResult(requestCode, resultCode, data) != true) {
             super.onActivityResult(requestCode, resultCode, data)
         }
     }
@@ -50,6 +53,8 @@ class MainActivity : FlutterFragmentActivity() {
         appBiometrics = null
         googleDrive?.close()
         googleDrive = null
+        localBackup?.close()
+        localBackup = null
         super.cleanUpFlutterEngine(flutterEngine)
     }
 }

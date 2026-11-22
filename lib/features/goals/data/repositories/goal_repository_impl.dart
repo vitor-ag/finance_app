@@ -18,6 +18,7 @@ class GoalRepositoryImpl implements GoalRepository {
     savedCents: row.savedCents,
     dueDate: row.dueDate,
     accountId: row.accountId,
+    icon: row.icon,
   );
 
   SimpleSelectStatement<$GoalsTable, GoalRow> _byId(int id) =>
@@ -44,17 +45,22 @@ class GoalRepositoryImpl implements GoalRepository {
     _validateReserve(goal.savedCents);
     return db.transaction(() async {
       await _validateLinkedAccount(goal.accountId);
-      return db
+      final id = await db
           .into(db.goals)
           .insert(
             GoalsCompanion.insert(
               name: goal.name.trim(),
               targetCents: goal.targetCents,
-              dueDate: calendarDate(goal.dueDate),
+              dueDate: Value(
+                goal.dueDate == null ? null : calendarDate(goal.dueDate!),
+              ),
               savedCents: Value(goal.savedCents),
               accountId: Value(goal.accountId),
+              icon: Value(goal.icon),
             ),
           );
+      if (goal.savedCents > 0) await _recordMovement(id, goal.savedCents);
+      return id;
     });
   }
 
@@ -71,8 +77,11 @@ class GoalRepositoryImpl implements GoalRepository {
         GoalsCompanion(
           name: Value(goal.name.trim()),
           targetCents: Value(goal.targetCents),
-          dueDate: Value(calendarDate(goal.dueDate)),
+          dueDate: Value(
+            goal.dueDate == null ? null : calendarDate(goal.dueDate!),
+          ),
           accountId: Value(goal.accountId),
+          icon: Value(goal.icon),
         ),
       );
     });
@@ -92,8 +101,13 @@ class GoalRepositoryImpl implements GoalRepository {
       await (db.update(db.goals)..where((table) => table.id.equals(id))).write(
         GoalsCompanion(savedCents: Value(savedCents)),
       );
+      await _recordMovement(id, deltaCents);
     });
   }
+
+  Future<void> _recordMovement(int id, int delta) => db
+      .into(db.goalMovements)
+      .insert(GoalMovementsCompanion.insert(goalId: id, deltaCents: delta));
 
   @override
   Future<void> deleteGoal(int id) =>

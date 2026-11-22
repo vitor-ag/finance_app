@@ -23,12 +23,39 @@ class CategoryRepositoryImpl implements CategoryRepository {
 
   @override
   Stream<List<Category>> watchAllCategories({String? type}) {
-    final query = db.select(db.categories);
+    final query = db.select(db.categories)
+      ..orderBy([
+        (row) => OrderingTerm.asc(row.position),
+        (row) => OrderingTerm.asc(row.id),
+      ]);
     if (type != null) {
       query.where((tbl) => tbl.type.equals(type));
     }
     return query.watch().map((rows) => rows.map(_mapRow).toList());
   }
+
+  @override
+  Future<void> reorderCategories(String type, List<int> ids) =>
+      db.transaction(() async {
+        final rows = await (db.select(
+          db.categories,
+        )..where((row) => row.type.equals(type))).get();
+        final existing = rows.map((row) => row.id).toSet();
+        if (existing.length != ids.length ||
+            !existing.containsAll(ids) ||
+            ids.toSet().length != ids.length) {
+          throw StateError('As categorias mudaram. Tente reordenar novamente.');
+        }
+        await db.batch((batch) {
+          for (final (index, id) in ids.indexed) {
+            batch.update(
+              db.categories,
+              CategoriesCompanion(position: Value(index)),
+              where: (row) => row.id.equals(id),
+            );
+          }
+        });
+      });
 
   @override
   Future<Category?> getCategoryById(int id) async {
@@ -42,6 +69,12 @@ class CategoryRepositoryImpl implements CategoryRepository {
   Future<int> createCategory(Category category) {
     return db.transaction(() async {
       await _validateParent(category);
+      final items =
+          await (db.select(db.categories)
+                ..where((row) => row.type.equals(category.type))
+                ..orderBy([(row) => OrderingTerm.desc(row.position)])
+                ..limit(1))
+              .getSingleOrNull();
       return db
           .into(db.categories)
           .insert(
@@ -51,6 +84,7 @@ class CategoryRepositoryImpl implements CategoryRepository {
               parentId: Value(category.parentId),
               color: Value(category.color),
               icon: Value(category.icon),
+              position: Value((items?.position ?? -1) + 1),
             ),
           );
     });
