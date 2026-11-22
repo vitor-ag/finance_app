@@ -1,6 +1,6 @@
 # Backup e sincronização pelo Google Drive
 
-No Android, abra **Mais → Configurações → Backup em nuvem** e vincule a conta Google que vai guardar os dados. Em **Backup agora**, escolha uma senha de criptografia de 12 a 128 caracteres. Guarde-a para a restauração. Em outro aparelho, crie a senha de acesso local, vincule a mesma conta, abra **Restaurar backup**, selecione a cópia e confirme a substituição dos dados locais.
+No Android, abra **Ajustes → Backup e restauração → Backup em nuvem** e vincule a conta Google que vai guardar os dados. Em **Backup agora**, escolha uma senha de criptografia de 12 a 128 caracteres. Guarde-a para a restauração. Em outro aparelho, crie a senha de acesso local, vincule a mesma conta, abra **Restaurar backup**, selecione a cópia e confirme a substituição dos dados locais.
 
 Ative **Sincronização automática** em cada aparelho para enviar e receber alterações. O app verifica o Drive ao voltar para o primeiro plano e a cada 45 segundos enquanto está aberto. Após uma gravação local, ele tenta sincronizar depois de 3 segundos sem novos registros. Em segundo plano, o Android agenda uma tarefa com rede disponível, com intervalo mínimo de 15 minutos e execução sujeita às restrições do aparelho. A tela mostra a última sincronização concluída e o último envio feito naquele aparelho. [Agendamento no Android](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started/define-work)
 

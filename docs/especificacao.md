@@ -213,13 +213,15 @@ Principais entidades e relacionamentos-chave:
 
 ## 13. Estrutura de Navegação
 
-Proposta revisada (Bottom Navigation com 5 itens, mais enxuto que a sugestão inicial de 6, com Metas/Relatórios agrupados dentro do Dashboard/Menu para não sobrecarregar a barra):
+A navegação contém quatro destinos e um botão de ação central. Em janelas mais largas, os mesmos destinos ficam em um trilho ou menu lateral.
 
-1. **Início** (dashboard)
-2. **Movimentações** (lista + busca/filtros)
-3. **+ (botão central de ação rápida)** — registrar lançamento
-4. **Contas** (contas, cartões, investimentos)
-5. **Mais** (metas, orçamento, relatórios, configurações, backup, segurança)
+1. **Início** (dashboard e acesso a Ajustes)
+2. **Lançamentos** (histórico, busca, filtros e lixeira)
+3. **+** (registrar lançamento)
+4. **Planejar** (orçamentos e metas)
+5. **Relatórios** (visão geral, categorias e evolução)
+
+**Ajustes** reúne contas e cartões, categorias, recorrências e agendados, notificações, segurança, aparência, backup e informações do aplicativo.
 
 ## 14. Lista de Telas (principais)
 
@@ -253,7 +255,7 @@ Contas/carteiras · Categorias · Entradas · Saídas · Transferências · Dash
 
 - Na primeira abertura, inclusive após atualizar uma instalação que ainda não tem proteção, a pessoa cria e confirma uma senha de 8 a 128 caracteres. O cadastro preserva o banco existente. Toda nova inicialização do processo começa bloqueada.
 - O verificador versionado usa PBKDF2-HMAC-SHA-256 com 600 mil iterações e salt aleatório de 16 bytes. O aplicativo persiste o verificador e o estado do bloqueio em armazenamento protegido pelo Android Keystore, sem gravar a senha. Se o registro existente estiver ilegível, o app mantém o acesso bloqueado.
-- A biometria é opcional. A pessoa pode ativá-la depois de cadastrar a senha ou em **Mais → Configurações → Segurança**, mediante confirmação da senha nesse segundo caso. O Android valida biometria forte com uma chave que exige autenticação a cada uso. Após uma mudança de cadastro que invalide a chave, é preciso usar a senha do app e reativar a biometria. Cancelamento, falha ou indisponibilidade do sensor permitem voltar à senha. O app nunca recebe impressões digitais nem dados faciais.
+- A biometria é opcional. A pessoa pode ativá-la depois de cadastrar a senha ou em **Ajustes → Segurança**, mediante confirmação da senha nesse segundo caso. O Android valida biometria forte com uma chave que exige autenticação a cada uso. Após uma mudança de cadastro que invalide a chave, é preciso usar a senha do app e reativar a biometria. Cancelamento, falha ou indisponibilidade do sensor permitem voltar à senha. O app nunca recebe impressões digitais nem dados faciais.
 - Em **Segurança**, a pessoa pode alterar a senha após confirmar a atual, desativar a biometria e selecionar o prazo de bloqueio ao sair do primeiro plano. As opções são **imediatamente**, **30 segundos** (padrão), **1 minuto** e **5 minutos**. O conteúdo fica oculto enquanto o app estiver fora de primeiro plano. Ao voltar depois do prazo, a tela de desbloqueio é exibida antes dos dados financeiros.
 - A partir do terceiro erro de senha consecutivo, a espera começa em 5 segundos, dobra a cada erro subsequente e é limitada a 5 minutos. O prazo e a contagem de erros persistem entre aberturas, e a tela avisa quando será possível tentar novamente. A validação da senha correta reinicia a contagem.
 
