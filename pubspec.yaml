@@ -61,6 +61,13 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   riverpod_annotation: ^2.3.5
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.3
+  material_symbols_icons: ^4.2960.0
+  shared_preferences: ^2.5.6
+  pdf: ^3.13.1
+  animations: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -91,6 +98,16 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/fonts/Inter-OFL.txt
+    - assets/fonts/Outfit-OFL.txt
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit.ttf
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter.ttf
 
   # To add assets to your application, add an assets section, like this:
   # assets:
