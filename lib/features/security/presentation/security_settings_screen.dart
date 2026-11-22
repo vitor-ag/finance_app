@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../backup/data/android_drive_backup.dart';
+import '../../backup/presentation/cloud_backup_screen.dart';
 import '../data/android_access.dart';
 import '../domain/local_access.dart';
 import 'password_form.dart';
@@ -15,6 +17,15 @@ class SettingsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Configurações')),
       body: ListView(
         children: [
+          if (ref.watch(driveBackupProvider) != null)
+            ListTile(
+              leading: const Icon(Icons.cloud_outlined),
+              title: const Text('Backup em nuvem'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(builder: (_) => const CloudBackupScreen()),
+              ),
+            ),
           if (access != null)
             ListTile(
               leading: const Icon(Icons.shield_outlined),

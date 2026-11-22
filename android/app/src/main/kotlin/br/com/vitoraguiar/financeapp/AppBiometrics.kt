@@ -1,4 +1,4 @@
-package com.example.finance_app
+package br.com.vitoraguiar.financeapp
 
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec

@@ -1,13 +1,24 @@
+import 'dart:async';
+
+import 'package:drift/drift.dart' show TableUpdate;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'data/local/database.dart';
 import 'features/accounts/presentation/screens/accounts_screen.dart';
+import 'features/backup/data/android_drive_backup.dart';
+import 'features/backup/data/backup_snapshot.dart';
+import 'features/backup/data/drive_sync.dart';
+import 'features/bills/data/repositories/bill_repository_impl.dart';
 import 'features/bills/presentation/providers/bill_providers.dart';
 import 'features/bills/presentation/screens/bills_screen.dart';
 import 'features/categories/presentation/screens/categories_screen.dart';
 import 'features/credit_cards/presentation/credit_cards_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'features/goals/presentation/screens/goals_screen.dart';
+import 'features/notifications/data/android_reminder_notifications.dart';
+import 'features/notifications/data/reminder_settings_store.dart';
+import 'features/notifications/domain/bill_reminder_coordinator.dart';
 import 'features/notifications/presentation/providers/reminder_providers.dart';
 import 'features/notifications/presentation/screens/reminder_settings_screen.dart';
 import 'features/recurrences/presentation/providers/recurrence_providers.dart';
@@ -22,6 +33,34 @@ void main() {
   runApp(const ProviderScope(child: MyApp()));
 }
 
+@pragma('vm:entry-point')
+Future<void> driveSyncWorker() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final database = AppDatabase();
+  var retry = false;
+  try {
+    final outcome = await AndroidDriveBackup(BackupDatabase(database))
+        .automaticSync();
+    if (outcome == SyncOutcome.downloaded) {
+      final settings = await ReminderSettingsStore(database).watch().first;
+      final bills = await BillRepositoryImpl(database).watchAllBills().first;
+      await BillReminderCoordinator(AndroidReminderNotifications())
+          .synchronize(settings, bills);
+    }
+  } on BackupProblem catch (error) {
+    retry = error.retry;
+  } catch (_) {
+    retry = true;
+  } finally {
+    try {
+      await database.close();
+    } catch (_) {
+      retry = true;
+    }
+    await AndroidDriveBackup.completeWorker(retry: retry);
+  }
+}
+
 class MyApp extends ConsumerStatefulWidget {
   const MyApp({super.key});
 
@@ -31,12 +70,82 @@ class MyApp extends ConsumerStatefulWidget {
 
 class _MyAppState extends ConsumerState<MyApp> {
   late final AppLifecycleListener _lifecycle;
+  StreamSubscription<Set<TableUpdate>>? _databaseChanges;
+  Timer? _backupPoll;
+  Timer? _afterEdit;
+  bool _syncing = false;
+  bool _foreground = false;
+  int? _externalDataVersion;
 
   @override
   void initState() {
     super.initState();
-    _lifecycle = AppLifecycleListener(onResume: _syncSchedules);
-    Future.microtask(_syncSchedules);
+    _lifecycle = AppLifecycleListener(
+      onResume: _resume,
+      onPause: _pause,
+      onHide: _pause,
+    );
+    Future.microtask(_resume);
+  }
+
+  Future<void> _resume() async {
+    if (!mounted || _foreground) return;
+    _foreground = true;
+    final backup = ref.read(driveBackupProvider);
+    if (backup != null) {
+      // The WorkManager engine may have committed changes while this engine
+      // was paused, so refresh its Drift streams before showing saved data.
+      backup.database.refresh();
+      ref.invalidate(driveStatusProvider);
+      _databaseChanges ??= backup.database.db.tableUpdates().listen((_) {
+        if (!_foreground ||
+            _syncing ||
+            ref.read(driveStatusProvider).valueOrNull?.automatic != true) {
+          return;
+        }
+        _afterEdit?.cancel();
+        _afterEdit = Timer(const Duration(seconds: 3), _pollDrive);
+      });
+      _backupPoll = Timer.periodic(
+        const Duration(seconds: 45),
+        (_) => _pollDrive(),
+      );
+      await _pollDrive();
+    }
+    await _syncSchedules();
+  }
+
+  void _pause() {
+    _foreground = false;
+    _backupPoll?.cancel();
+    _afterEdit?.cancel();
+  }
+
+  Future<void> _pollDrive() async {
+    if (!mounted || !_foreground || _syncing) return;
+    _syncing = true;
+    final backup = ref.read(driveBackupProvider);
+    try {
+      await backup?.automaticSync();
+    } on BackupProblem {
+      // Drive and authorization errors are available in the backup settings.
+    } catch (_) {
+      // Keep local use available if Android's secure storage is unavailable.
+    } finally {
+      if (backup != null && mounted) {
+        try {
+          final version = await backup.database.dataVersion();
+          if (_externalDataVersion != null && version != _externalDataVersion) {
+            backup.database.refresh();
+          }
+          _externalDataVersion = version;
+        } catch (_) {
+          // The next poll or resume can refresh the views after a busy database.
+        }
+      }
+      _syncing = false;
+      if (mounted) ref.invalidate(driveStatusProvider);
+    }
   }
 
   Future<void> _syncSchedules() async {
@@ -63,6 +172,8 @@ class _MyAppState extends ConsumerState<MyApp> {
   @override
   void dispose() {
     _lifecycle.dispose();
+    _pause();
+    _databaseChanges?.cancel();
     super.dispose();
   }
 
