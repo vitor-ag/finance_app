@@ -4,6 +4,7 @@ import 'package:finance_app/data/local/database.dart';
 import 'package:finance_app/features/accounts/data/repositories/account_repository_impl.dart';
 import 'package:finance_app/features/accounts/domain/entities/account.dart';
 import 'package:finance_app/features/bills/data/repositories/bill_repository_impl.dart';
+import 'package:finance_app/features/credit_cards/data/credit_card_repository.dart';
 import 'package:finance_app/features/notifications/presentation/providers/reminder_providers.dart';
 import 'package:finance_app/main.dart';
 import 'package:flutter/material.dart';
@@ -236,6 +237,95 @@ void main() {
     await tester.tap(bills);
     await tester.pumpAndSettle();
     expect(find.text('Nenhuma conta a pagar cadastrada'), findsOneWidget);
+    await closeTestDatabase(tester, db);
+  });
+
+  testWidgets('Início opens the forecast and filters movements by account', (
+    tester,
+  ) async {
+    compactViewport(tester);
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    final bank = await AccountRepositoryImpl(db).createAccount(
+      Account(
+        name: 'Banco QA',
+        type: 'checking',
+        initialBalanceCents: 180000,
+        currentBalanceCents: 180000,
+        createdAt: DateTime.now(),
+      ),
+    );
+    final today = DateUtils.dateOnly(DateTime.now());
+    final due = DateTime(today.year, today.month, today.day + 1);
+    await db
+        .into(db.bills)
+        .insert(
+          BillsCompanion.insert(
+            name: 'Aluguel QA',
+            amountCents: 210000,
+            dueDate: due,
+            billType: 'fixed',
+          ),
+        );
+    final cards = CreditCardRepository(db);
+    final card = await cards.createCard(
+      name: 'Cartão QA',
+      limitCents: 200000,
+      closingDay: 1,
+      dueDay: 2,
+    );
+    await cards.createPurchase(
+      cardId: card,
+      description: 'Compra QA',
+      amountCents: 2000,
+      count: 1,
+      date: DateTime(today.year, today.month),
+    );
+    await db
+        .into(db.transactions)
+        .insert(
+          TransactionsCompanion.insert(
+            type: 'income',
+            amountCents: 10000,
+            date: today,
+            accountId: bank,
+          ),
+        );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [databaseProvider.overrideWithValue(db)],
+        child: const MyApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final forecast = find.widgetWithText(ActionChip, 'Previsão');
+    await tester.ensureVisible(forecast);
+    await tester.tap(forecast);
+    await tester.pumpAndSettle();
+    expect(find.text('Previsão de saldo'), findsOneWidget);
+    expect(find.textContaining('Saldo fica negativo'), findsOneWidget);
+    expect(find.text('Todas as contas ativas'), findsOneWidget);
+
+    final filter = find.byType(DropdownButtonFormField<int>);
+    await tester.tap(filter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Banco QA').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Saldo fica negativo'), findsNothing);
+    expect(
+      find.text('Nenhuma movimentação prevista no período.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Aluguel QA'), 180);
+    expect(find.text('Próximos vencimentos'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Compra QA'), 180);
+    expect(find.text('Maiores gastos'), findsOneWidget);
+    expect(find.text('Compra QA'), findsOneWidget);
+    expect(tester.takeException(), isNull);
     await closeTestDatabase(tester, db);
   });
 

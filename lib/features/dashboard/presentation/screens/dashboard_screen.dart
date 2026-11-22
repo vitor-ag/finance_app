@@ -6,13 +6,17 @@ import 'package:material_symbols_icons/symbols.dart';
 import '../../../../core/design/app_preferences.dart';
 import '../../../../core/design/app_theme.dart';
 import '../../../../core/design/balance_card.dart';
+import '../../../../core/design/category_style.dart';
 import '../../../../core/design/components.dart';
 import '../../../accounts/presentation/providers/account_providers.dart';
-import '../../../bills/presentation/providers/bill_providers.dart';
 import '../../../budgets/budget_data.dart';
 import '../../../budgets/budgets_screen.dart';
 import '../../../categories/domain/entities/category.dart';
 import '../../../categories/presentation/providers/category_providers.dart';
+import '../../../credit_cards/presentation/credit_card_providers.dart';
+import '../../../forecast/domain/cash_forecast.dart';
+import '../../../forecast/presentation/cash_event_tile.dart';
+import '../../../forecast/presentation/cash_forecast_provider.dart';
 import '../../../reports/category_chart.dart';
 import '../../../reports/finance_summary.dart';
 import '../../../transactions/presentation/providers/transaction_providers.dart';
@@ -22,6 +26,11 @@ class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({
     super.key,
     required this.onOpenBills,
+    required this.onOpenCards,
+    required this.onOpenCard,
+    required this.onOpenRecurrences,
+    required this.onOpenForecast,
+    required this.onOpenCategory,
     required this.onSettings,
     required this.onNew,
     required this.onReports,
@@ -30,11 +39,16 @@ class DashboardScreen extends ConsumerStatefulWidget {
   });
 
   final VoidCallback onOpenBills,
+      onOpenCards,
+      onOpenRecurrences,
+      onOpenForecast,
       onSettings,
       onReports,
       onPlanning,
       onTransactions;
   final ValueChanged<String> onNew;
+  final ValueChanged<int> onOpenCard;
+  final void Function(Period, int?) onOpenCategory;
 
   @override
   ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
@@ -48,8 +62,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final now = DateTime.now();
     final month = _selectedMonth ?? firstOfMonth(now);
     final accounts = ref.watch(allAccountsProvider);
-    final bills = ref.watch(allBillsProvider);
+    final forecast = ref.watch(cashForecastProvider);
     final transactions = ref.watch(allTransactionsProvider);
+    final purchases = ref.watch(cardPurchasesProvider).valueOrNull ?? [];
     final history = ref.watch(financeHistoryProvider);
     final budgets = ref.watch(budgetsProvider);
     final categoryList = ref.watch(allCategoriesProvider());
@@ -71,17 +86,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           BigInt.zero,
           (sum, item) => sum + BigInt.from(item.currentBalanceCents),
         );
-    final upcoming =
-        (bills.valueOrNull ?? [])
-            .where((item) => item.status == 'pending')
-            .toList()
-          ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
-    final pending = (transactions.valueOrNull ?? [])
-        .where((item) => item.status == 'pending')
-        .toList();
     final recent = (transactions.valueOrNull ?? [])
         .where((item) => firstOfMonth(item.date) == month)
         .take(5);
+    final expenses =
+        [
+          for (final item in transactions.valueOrNull ?? [])
+            if (item.type == 'expense' &&
+                item.status == 'paid' &&
+                firstOfMonth(item.date) == month)
+              (
+                title: transactionTitle(item, categories[item.categoryId]),
+                cents: item.amountCents,
+                date: item.date,
+                categoryId: item.categoryId,
+                cardId: null as int?,
+              ),
+          for (final item in purchases)
+            if (firstOfMonth(item.purchaseDate) == month)
+              (
+                title: item.description,
+                cents: item.amountCents,
+                date: item.purchaseDate,
+                categoryId: item.categoryId,
+                cardId: item.cardId,
+              ),
+        ]..sort((a, b) {
+          final byAmount = b.cents.compareTo(a.cents);
+          return byAmount == 0 ? b.date.compareTo(a.date) : byAmount;
+        });
     final planned = BudgetProgress.forMonth(
       budgets.valueOrNull ?? [],
       month,
@@ -89,14 +122,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
     final failed =
         accounts.hasError ||
-        bills.hasError ||
         transactions.hasError ||
         history.hasError ||
         budgets.hasError ||
         categoryList.hasError;
     final loading =
         !accounts.hasValue ||
-        !bills.hasValue ||
         !transactions.hasValue ||
         !history.hasValue ||
         !budgets.hasValue ||
@@ -124,30 +155,63 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           const SizedBox(height: 16),
           shortcuts,
         ],
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: [
+            for (final (label, icon, open) in [
+              ('Previsão', Symbols.timeline_rounded, widget.onOpenForecast),
+              ('Contas a pagar', Symbols.event_rounded, widget.onOpenBills),
+              ('Cartões', Symbols.credit_card_rounded, widget.onOpenCards),
+              (
+                'Recorrências',
+                Symbols.repeat_rounded,
+                widget.onOpenRecurrences,
+              ),
+            ])
+              ActionChip(
+                avatar: Icon(icon, size: 18),
+                label: Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                  ),
+                ),
+                backgroundColor: label == 'Previsão'
+                    ? theme.colorScheme.primaryContainer
+                    : null,
+                onPressed: open,
+              ),
+          ],
+        ),
         if (history.hasValue && !failed) ...[
           const SizedBox(height: 16),
-          AppSurface(child: Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 12,
-            runSpacing: 4,
-            children: [
-              Text('Resultado do mês', style: theme.textTheme.titleSmall),
-              MoneyText.total(overview.result),
-            ],
-          )),
+          AppSurface(
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 12,
+              runSpacing: 4,
+              children: [
+                Text('Resultado do mês', style: theme.textTheme.titleSmall),
+                MoneyText.total(overview.result),
+              ],
+            ),
+          ),
         ],
       ],
     );
     final cleared = _Section(
-      title: 'Para onde foi seu dinheiro',
-      action: 'Ver tudo',
+      title: 'Gastos por categoria',
+      action: 'Ver relatórios',
       onAction: widget.onReports,
       child: AppSurface(
         child: CategoryChart(
           summary: overview,
           categories: categories,
           limit: 5,
+          onCategory: (id) => widget.onOpenCategory(monthPeriod(month), id),
         ),
       ),
     );
@@ -203,57 +267,95 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               },
             ),
     );
-    final scheduled = [
-      for (final item in upcoming)
-        (
-          title: item.name,
-          date: item.dueDate,
-          cents: item.amountCents,
-          open: widget.onOpenBills,
+    final forecastPreview = _Section(
+      title: 'Previsão de 30 dias',
+      child: forecast.when(
+        loading: () => const LinearProgressIndicator(),
+        error: (_, _) => AppSurface(
+          child: TextButton(
+            onPressed: () => ref.invalidate(cashForecastProvider),
+            child: const Text('Recarregar previsão'),
+          ),
         ),
-      for (final item in pending)
-        (
-          title: item.description ?? 'Lançamento agendado',
-          date: item.date,
-          cents: item.amountCents,
-          open: widget.onTransactions,
+        data: (data) => _ForecastPreview(
+          projection: data.total,
+          onOpen: widget.onOpenForecast,
         ),
-    ]..sort((a, b) => a.date.compareTo(b.date));
+      ),
+    );
     final due = _Section(
       title: 'Próximos vencimentos',
+      action: 'Ver contas a pagar',
+      onAction: widget.onOpenBills,
+      child: forecast.when(
+        loading: () => const LinearProgressIndicator(),
+        error: (_, _) =>
+            const AppSurface(child: Text('Vencimentos indisponíveis.')),
+        data: (data) {
+          final upcoming = data.total.days
+              .expand((day) => day.movements)
+              .where((item) => !item.event.isTransfer && item.delta.isNegative)
+              .map((item) => item.event)
+              .take(3)
+              .toList();
+          return AppSurface(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: upcoming.isEmpty
+                ? const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Text('Nenhum vencimento nos próximos 30 dias.'),
+                  )
+                : Column(
+                    children: [
+                      for (final item in upcoming)
+                        CashEventTile(
+                          event: item,
+                          delta: item.delta,
+                          today: data.today,
+                          showDate: true,
+                          onTap: switch (item.source) {
+                            CashEventSource.bill ||
+                            CashEventSource.repeatingBill => widget.onOpenBills,
+                            CashEventSource.statement =>
+                              () => widget.onOpenCard(item.cardId!),
+                            CashEventSource.scheduled => widget.onTransactions,
+                            CashEventSource.recurrence =>
+                              widget.onOpenRecurrences,
+                          },
+                        ),
+                    ],
+                  ),
+          );
+        },
+      ),
+    );
+    final biggestExpenses = _Section(
+      title: 'Maiores gastos',
+      action: 'Ver lançamentos',
+      onAction: widget.onTransactions,
       child: AppSurface(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Column(
-          children: [
-            if (scheduled.isEmpty)
-              const Padding(
+        child: expenses.isEmpty
+            ? const Padding(
                 padding: EdgeInsets.all(8),
-                child: Text('Nenhum vencimento pendente.'),
+                child: Text('Nenhum gasto no mês selecionado.'),
+              )
+            : Column(
+                children: [
+                  for (final expense in expenses.take(3))
+                    _ExpenseRow(
+                      title: expense.title,
+                      cents: expense.cents,
+                      category: categories[expense.categoryId],
+                      onTap: expense.cardId == null
+                          ? () => widget.onOpenCategory(
+                              monthPeriod(month),
+                              expense.categoryId,
+                            )
+                          : () => widget.onOpenCard(expense.cardId!),
+                    ),
+                ],
               ),
-            for (final item in scheduled.take(3))
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const AppIcon(Symbols.event_rounded),
-                title: Text(item.title),
-                subtitle: Text(DateFormat.yMd('pt_BR').format(item.date)),
-                trailing: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 100),
-                  child: MoneyText(
-                    item.cents,
-                    alignment: Alignment.centerRight,
-                  ),
-                ),
-                onTap: item.open,
-              ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton(
-                onPressed: widget.onOpenBills,
-                child: const Text('Ver contas a pagar'),
-              ),
-            ),
-          ],
-        ),
       ),
     );
     final latest = _Section(
@@ -294,7 +396,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             actionLabel: 'Tentar novamente',
             onAction: () {
               ref.invalidate(allAccountsProvider);
-              ref.invalidate(allBillsProvider);
+              ref.invalidate(cashForecastProvider);
               ref.invalidate(allTransactionsProvider);
               ref.invalidate(financeHistoryProvider);
               ref.invalidate(budgetsProvider);
@@ -341,7 +443,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     key: const PageStorageKey('início-lateral'),
                     padding: const EdgeInsets.only(bottom: 24),
                     children: [
-                      if (!failed && !loading) ...[due, latest],
+                      forecastPreview,
+                      due,
+                      if (!failed && !loading) ...[biggestExpenses, latest],
                     ],
                   ),
                 ),
@@ -357,8 +461,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           key: const PageStorageKey('início-principal'),
           slivers: [
             SliverAppBar(
-            pinned: MediaQuery.sizeOf(context).height < 480,
-            floating: true,
+              pinned: MediaQuery.sizeOf(context).height < 480,
+              floating: true,
               title: Text(
                 name.isEmpty ? 'Início' : 'Olá, $name',
                 maxLines: 1,
@@ -379,23 +483,31 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 children: [
                   essentials,
                   const SizedBox(height: 20),
+                  forecastPreview,
+                  due,
                   if (failed || loading)
                     loadState()
                   else if (size == WindowSizeClass.medium)
                     LayoutBuilder(
                       builder: (context, constraints) {
                         final width = (constraints.maxWidth - 16) / 2;
-                        if (width < 230)
+                        if (width < 230) {
                           return Column(
-                            children: [cleared, plannedSection, due, latest],
+                            children: [
+                              biggestExpenses,
+                              cleared,
+                              plannedSection,
+                              latest,
+                            ],
                           );
+                        }
                         return Wrap(
                           spacing: 16,
                           children: [
                             for (final section in [
+                              biggestExpenses,
                               cleared,
                               plannedSection,
-                              due,
                               latest,
                             ])
                               SizedBox(width: width, child: section),
@@ -404,9 +516,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       },
                     )
                   else ...[
+                    biggestExpenses,
                     cleared,
                     plannedSection,
-                    due,
                     latest,
                   ],
                 ],
@@ -415,6 +527,100 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ForecastPreview extends StatelessWidget {
+  const _ForecastPreview({required this.projection, required this.onOpen});
+
+  final CashProjection projection;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final hidden = PreferencesScope.of(context)?.discreet ?? false;
+    final dates = DateFormat.Md('pt_BR');
+    final last = projection.days.last;
+    return AppSurface(
+      onTap: onOpen,
+      child: Row(
+        children: [
+          const AppIcon(Symbols.timeline_rounded),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Saldo previsto em ${dates.format(last.date)}',
+                  style: theme.textTheme.bodySmall,
+                ),
+                MoneyText.total(
+                  last.closing,
+                  style: theme.textTheme.headlineSmall,
+                  kind: last.closing.isNegative
+                      ? MoneyKind.expense
+                      : MoneyKind.neutral,
+                ),
+                if (projection.firstNegativeDay case final day? when !hidden)
+                  Text(
+                    'Saldo negativo previsto em ${dates.format(day.date)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: AppColors.of(context).expenseText,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const Icon(Symbols.chevron_right_rounded),
+        ],
+      ),
+    );
+  }
+}
+
+class _ExpenseRow extends StatelessWidget {
+  const _ExpenseRow({
+    required this.title,
+    required this.cents,
+    required this.category,
+    required this.onTap,
+  });
+
+  final String title;
+  final int cents;
+  final Category? category;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color) = categoryStyle(context, category);
+    final largeText = MediaQuery.textScalerOf(context).scale(14) > 20;
+    final amount = MoneyText(
+      cents,
+      kind: MoneyKind.expense,
+      alignment: largeText ? Alignment.centerLeft : Alignment.centerRight,
+    );
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      leading: AppIcon(icon, color: color),
+      title: Text(title),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(category?.name ?? 'Sem categoria'),
+          if (largeText) amount,
+        ],
+      ),
+      trailing: largeText
+          ? null
+          : ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 112),
+              child: amount,
+            ),
+      onTap: onTap,
     );
   }
 }

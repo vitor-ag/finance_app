@@ -25,13 +25,16 @@ import 'features/backup/data/local_backup.dart';
 import 'features/bills/data/repositories/bill_repository_impl.dart';
 import 'features/bills/presentation/providers/bill_providers.dart';
 import 'features/bills/presentation/screens/bills_screen.dart';
+import 'features/credit_cards/presentation/credit_cards_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
+import 'features/forecast/presentation/cash_forecast_screen.dart';
 import 'features/notifications/data/android_reminder_notifications.dart';
 import 'features/notifications/data/planning_reminders.dart';
 import 'features/notifications/data/reminder_settings_store.dart';
 import 'features/notifications/domain/bill_reminder_coordinator.dart';
 import 'features/notifications/presentation/providers/reminder_providers.dart';
 import 'features/recurrences/presentation/providers/recurrence_providers.dart';
+import 'features/recurrences/presentation/screens/recurrences_screen.dart';
 import 'features/security/presentation/app_access_gate.dart';
 import 'features/transactions/presentation/screens/transactions_screen.dart';
 import 'features/transactions/presentation/widgets/transaction_form.dart';
@@ -367,6 +370,23 @@ class _RootScreenState extends State<RootScreen>
           context,
           MaterialPageRoute(builder: (_) => const BillsScreen()),
         ),
+        onOpenCards: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute(builder: (_) => const CreditCardsScreen()),
+        ),
+        onOpenCard: (id) => Navigator.push<void>(
+          context,
+          MaterialPageRoute(builder: (_) => CardDetailsScreen(cardId: id)),
+        ),
+        onOpenRecurrences: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute(builder: (_) => const RecurrencesScreen()),
+        ),
+        onOpenForecast: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute(builder: (_) => const CashForecastScreen()),
+        ),
+        onOpenCategory: _openCategory,
         onSettings: _settings,
         onNew: _new,
         onReports: () => _select(3),

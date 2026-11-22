@@ -10,7 +10,8 @@ O design **Violeta Vibrante** usa Outfit e Inter empacotadas no app. A aparênci
 
 ## Funcionalidades
 
-- **Início** mostra o saldo das contas ativas, o resultado do mês, receitas, despesas, orçamentos, vencimentos e lançamentos recentes. O botão de olho ativa o modo discreto.
+- **Início** mostra o saldo das contas ativas, o resultado do mês, a previsão de saldo, os próximos vencimentos, os maiores gastos e o consumo por categoria. Os atalhos abrem Previsão, Contas a pagar, Cartões e Recorrências. O botão de olho ativa o modo discreto.
+- **Previsão de saldo** projeta os próximos 30 dias a partir de hoje com base nos lançamentos agendados, recorrências, contas a pagar e faturas em aberto. Mostra o saldo por dia, o menor saldo e o primeiro dia em que o saldo projetado fica negativo. O filtro por conta exibe movimentações vinculadas. A visão geral também inclui contas e faturas sem conta de pagamento definida.
 - **Lançamentos** reúne receitas, despesas, transferências e compras no cartão. É possível pesquisar, combinar filtros, agendar, duplicar, editar e consultar a lixeira e o histórico de alterações.
 - **Planejar** reúne orçamentos mensais por categoria e metas com histórico de aportes e retiradas.
 - **Relatórios** compara receitas, despesas e resultado com o período anterior, detalha os gastos por categoria e exporta CSV e PDF.

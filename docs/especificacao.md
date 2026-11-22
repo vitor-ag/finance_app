@@ -76,6 +76,7 @@ O diferencial central é preservar a **privacidade por padrão**, oferecer **fun
 | RF20 | Exigir senha local ou biometria no Android, com bloqueio automático configurável |
 | RF21 | Alternar entre tema claro e escuro |
 | RF22 | Editar, excluir (lógico) e duplicar lançamentos, com histórico/lixeira |
+| RF23 | Projetar o saldo de 30 dias a partir das movimentações previstas, no total e por conta ativa |
 
 ## 5. Requisitos Não Funcionais
 
@@ -101,6 +102,7 @@ O diferencial central é preservar a **privacidade por padrão**, oferecer **fun
 8. Toda alteração de saldo deve ser resultado de um lançamento rastreável — nunca uma edição direta e não auditável do saldo da conta.
 9. Recorrências geram ocorrências futuras (não o lançamento inteiro de uma vez), permitindo pausar/cancelar sem afetar o que já foi gerado.
 10. Exclusão de lançamento é lógica (soft delete) por padrão, permitindo recuperação via "lixeira".
+11. A previsão parte do saldo registrado e calcula o saldo ao fim de cada dia. Inclui lançamentos pendentes e ocorrências futuras, sem gerar registros no banco. Pendências vencidas entram no cálculo de hoje e mantêm a data original na lista. Compras no cartão entram na projeção pela fatura em aberto, na data de vencimento. Transferências afetam a previsão das contas de origem e destino. Compromissos sem conta de pagamento definida entram no total geral.
 
 ---
 
@@ -215,7 +217,7 @@ Principais entidades e relacionamentos-chave:
 
 A navegação contém quatro destinos e um botão de ação central. Em janelas mais largas, os mesmos destinos ficam em um trilho ou menu lateral.
 
-1. **Início** (dashboard e acesso a Ajustes)
+1. **Início** (dashboard, previsão de saldo, atalhos para contas a pagar, cartões, recorrências e acesso a Ajustes)
 2. **Lançamentos** (histórico, busca, filtros e lixeira)
 3. **+** (registrar lançamento)
 4. **Planejar** (orçamentos e metas)
@@ -241,7 +243,7 @@ Contas/carteiras · Categorias · Entradas · Saídas · Transferências · Dash
 
 **v1.2:** Orçamento planejado x realizado com indicadores visuais · Análises descritivas e variações anormais · Exportação CSV/JSON · Segurança (senha local e biometria).
 
-**Futuro:** Integrações com OneDrive e Dropbox · Relatórios em PDF · Previsão de saldo futuro (cálculo determinístico) · Controle de dívidas/empréstimos entre pessoas · Widget de saldo na home · OCR de comprovantes · Versão iOS.
+**Futuro:** Integrações com OneDrive e Dropbox · Relatórios em PDF · Controle de dívidas/empréstimos entre pessoas · Widget de saldo na home · OCR de comprovantes · Versão iOS.
 
 ## 17. Riscos e Decisões Arquiteturais Importantes
 
