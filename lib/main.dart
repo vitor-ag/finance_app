@@ -12,6 +12,9 @@ import 'features/notifications/presentation/providers/reminder_providers.dart';
 import 'features/notifications/presentation/screens/reminder_settings_screen.dart';
 import 'features/recurrences/presentation/providers/recurrence_providers.dart';
 import 'features/recurrences/presentation/screens/recurrences_screen.dart';
+import 'features/security/data/android_access.dart';
+import 'features/security/presentation/app_access_gate.dart';
+import 'features/security/presentation/security_settings_screen.dart';
 import 'features/transactions/presentation/screens/transactions_screen.dart';
 import 'features/transactions/presentation/widgets/transaction_form.dart';
 
@@ -80,6 +83,7 @@ class _MyAppState extends ConsumerState<MyApp> {
         brightness: Brightness.dark,
       ),
       themeMode: ThemeMode.system,
+      builder: (context, child) => AppAccessGate(child: child!),
       home: const RootScreen(),
     );
   }
@@ -146,13 +150,13 @@ class _RootScreenState extends State<RootScreen> {
   }
 }
 
-class _MoreScreen extends StatelessWidget {
+class _MoreScreen extends ConsumerWidget {
   const _MoreScreen({required this.onOpenPage});
 
   final ValueChanged<Widget> onOpenPage;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Scaffold(
       appBar: AppBar(title: const Text('Mais'), centerTitle: true),
       body: ListView(
@@ -194,6 +198,13 @@ class _MoreScreen extends StatelessWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () => onOpenPage(const CategoriesScreen()),
           ),
+          if (ref.watch(localAccessProvider) != null)
+            ListTile(
+              leading: const Icon(Icons.settings_outlined),
+              title: const Text('Configurações'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => onOpenPage(const SettingsScreen()),
+            ),
         ],
       ),
     );
