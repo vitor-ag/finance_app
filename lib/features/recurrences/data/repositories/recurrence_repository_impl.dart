@@ -100,7 +100,7 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
               maxOccurrences: Value(recurrence.maxOccurrences),
               nextOccurrenceDate: first == null
                   ? start
-                  : _advance(start, recurrence.frequency, day),
+                  : nextRecurrenceDate(start, recurrence.frequency, day),
               generatedCount: Value(first == null ? 0 : 1),
               entryStatus: Value(first?.status ?? 'paid'),
               note: Value(first?.note),
@@ -211,7 +211,7 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
     while (!nextDate.isAfter(today) && !finished()) {
       await _createOccurrence(r, nextDate);
       generatedCount++;
-      nextDate = _advance(
+      nextDate = nextRecurrenceDate(
         nextDate,
         r.frequency,
         r.dayOfMonth ?? r.startDate.day,
@@ -246,19 +246,5 @@ class RecurrenceRepositoryImpl implements RecurrenceRepository {
         createdAt: DateTime.now(),
       ),
     );
-  }
-
-  DateTime _advance(DateTime current, String frequency, int dayOfMonth) {
-    switch (frequency) {
-      case 'weekly':
-        return DateTime(current.year, current.month, current.day + 7);
-
-      case 'yearly':
-        return dateWithClampedDay(current.year + 1, current.month, dayOfMonth);
-
-      case 'monthly':
-      default:
-        return dateWithClampedDay(current.year, current.month + 1, dayOfMonth);
-    }
   }
 }

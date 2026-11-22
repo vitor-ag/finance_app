@@ -1,3 +1,17 @@
+import '../../../../core/calendar.dart';
+
+DateTime nextRecurrenceDate(
+  DateTime current,
+  String frequency,
+  int dayOfMonth,
+) {
+  return switch (frequency) {
+    'weekly' => DateTime(current.year, current.month, current.day + 7),
+    'yearly' => dateWithClampedDay(current.year + 1, current.month, dayOfMonth),
+    _ => dateWithClampedDay(current.year, current.month + 1, dayOfMonth),
+  };
+}
+
 /// Domain entity for a recurring transaction template
 /// (e.g. salary every 5th, rent every 10th).
 class Recurrence {
