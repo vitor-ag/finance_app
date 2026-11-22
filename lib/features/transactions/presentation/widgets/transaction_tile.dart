@@ -9,8 +9,8 @@ import '../../../categories/domain/entities/category.dart';
 import '../../domain/entities/transaction.dart';
 
 MoneyKind transactionKind(Transaction item) => switch (item.type) {
-  'expense' => MoneyKind.expense,
-  'income' => MoneyKind.income,
+  'expense' || investmentContributionType => MoneyKind.expense,
+  'income' || investmentRedemptionType => MoneyKind.income,
   _ => MoneyKind.neutral,
 };
 
@@ -18,6 +18,8 @@ String transactionType(String type) => switch (type) {
   'income' => 'Receita',
   'transfer' => 'Transferência',
   'card_payment' => 'Pagamento de fatura',
+  investmentContributionType => 'Aporte em investimento',
+  investmentRedemptionType => 'Resgate de investimento',
   _ => 'Despesa',
 };
 
@@ -54,6 +56,10 @@ class TransactionTile extends StatelessWidget {
             'expense' => (Symbols.arrow_downward_rounded, palette.expenseText),
             'card_payment' => (
               Symbols.credit_card_rounded,
+              theme.colorScheme.primary,
+            ),
+            investmentContributionType || investmentRedemptionType => (
+              Symbols.trending_up_rounded,
               theme.colorScheme.primary,
             ),
             _ => (Symbols.swap_horiz_rounded, theme.colorScheme.primary),

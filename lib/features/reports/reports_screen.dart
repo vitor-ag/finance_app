@@ -18,6 +18,7 @@ import '../../core/widgets/record_actions.dart';
 import '../budgets/budgets_screen.dart';
 import '../categories/domain/entities/category.dart';
 import '../categories/presentation/providers/category_providers.dart';
+import '../investments/presentation/investment_report_screen.dart';
 import 'category_chart.dart';
 import 'finance_summary.dart';
 
@@ -218,6 +219,20 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           key: const PageStorageKey('relatórios'),
           padding: AppLayout.pagePadding(context),
           children: [
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                icon: const Icon(Symbols.trending_up_rounded),
+                label: const Text('Relatório de investimentos'),
+                onPressed: () => Navigator.push<void>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const InvestmentReportScreen(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 4,

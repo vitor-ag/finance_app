@@ -202,7 +202,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Saldo total'), findsOneWidget);
+    expect(find.text('Saldo disponível'), findsOneWidget);
     expect(money('+R\$ 12,34'), findsOneWidget);
     expect(money('−R\$ 2,00'), findsOneWidget);
 
@@ -304,7 +304,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Previsão de saldo'), findsOneWidget);
     expect(find.textContaining('Saldo fica negativo'), findsOneWidget);
-    expect(find.text('Todas as contas ativas'), findsOneWidget);
+    expect(find.text('Todas as contas disponíveis'), findsOneWidget);
 
     final filter = find.byType(DropdownButtonFormField<int>);
     await tester.tap(filter);
@@ -328,6 +328,58 @@ void main() {
     expect(tester.takeException(), isNull);
     await closeTestDatabase(tester, db);
   });
+
+  testWidgets(
+    'Investments records a position and shows its monthly valuation',
+    (tester) async {
+      compactViewport(tester);
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      await db
+          .into(db.accounts)
+          .insert(AccountsCompanion.insert(name: 'Banco QA', type: 'checking'));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [databaseProvider.overrideWithValue(db)],
+          child: const MyApp(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final investments = find.widgetWithText(ActionChip, 'Investimentos');
+      await tester.ensureVisible(investments);
+      await tester.tap(investments);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Novo investimento'));
+      await tester.pumpAndSettle();
+
+      Finder field(String label) => find.widgetWithText(TextFormField, label);
+      await tester.enterText(field('Nome'), 'CDB QA');
+      await tester.enterText(field('Tipo'), 'Renda fixa');
+      final initialValue = field('Valor bruto da posição');
+      await tester.ensureVisible(initialValue);
+      await tester.enterText(initialValue, '1000');
+      final save = find.widgetWithText(FilledButton, 'Salvar');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(find.text('CDB QA'), findsOneWidget);
+
+      await tester.tap(find.text('Atualizar posição'));
+      await tester.pumpAndSettle();
+      await tester.enterText(field('Valor bruto da posição'), '1120');
+      await tester.enterText(field('Resgatável hoje (líquido)'), '950');
+      await tester.ensureVisible(save);
+      await tester.tap(save);
+      await tester.pumpAndSettle();
+      expect(find.text('Variação de valor'), findsOneWidget);
+      await tester.tap(find.text('Relatório mensal'));
+      await tester.pumpAndSettle();
+      expect(find.text('Resultado líquido do mês'), findsOneWidget);
+      expect(money('+R\$ 120,00'), findsAtLeastNWidgets(1));
+      expect(await db.select(db.transactions).get(), isEmpty);
+      expect(tester.takeException(), isNull);
+      await closeTestDatabase(tester, db);
+    },
+  );
 
   testWidgets('AccountsScreen renders empty state', (
     WidgetTester tester,

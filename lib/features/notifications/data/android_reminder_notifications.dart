@@ -13,8 +13,10 @@ class AndroidReminderNotifications implements ReminderNotifications {
   Future<void>? _initialization;
 
   static const _channelId = 'bill_due_reminders';
+  static const _investmentChannelId = 'investment_review';
   static const _dailyId = 2;
   static const _budgetId = 3;
+  static const _investmentId = 4;
   static const _planning = NotificationDetails(
     android: AndroidNotificationDetails(
       'finance_planning',
@@ -30,6 +32,14 @@ class AndroidReminderNotifications implements ReminderNotifications {
       channelDescription: 'Lembretes de contas a pagar cadastradas no app',
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
+      visibility: NotificationVisibility.private,
+    ),
+  );
+  static const _investment = NotificationDetails(
+    android: AndroidNotificationDetails(
+      _investmentChannelId,
+      'Revisão de investimentos',
+      channelDescription: 'Lembrete mensal para atualizar valores informados',
       visibility: NotificationVisibility.private,
     ),
   );
@@ -130,10 +140,7 @@ class AndroidReminderNotifications implements ReminderNotifications {
     await _ensureInitialized();
     await _plugin.cancel(_dailyId);
     if (!enabled || await _android.areNotificationsEnabled() != true) return;
-    tzdata.initializeTimeZones();
-    final zone = await const MethodChannel('finance_app/local_backup')
-        .invokeMethod<String>('timeZone');
-    final location = tz.getLocation(zone ?? 'UTC');
+    final location = await _deviceLocation();
     final now = tz.TZDateTime.now(location);
     var next = tz.TZDateTime(
       location,
@@ -164,6 +171,55 @@ class AndroidReminderNotifications implements ReminderNotifications {
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+  }
+
+  Future<bool> hasInvestmentReminder() async {
+    return (await pending()).any((item) => item.id == _investmentId);
+  }
+
+  Future<bool> setInvestmentReminder(bool enabled) async {
+    await _ensureInitialized();
+    if (!enabled) {
+      await _plugin.cancel(_investmentId);
+      return true;
+    }
+    if (await _android.areNotificationsEnabled() != true) {
+      await _android.requestNotificationsPermission();
+      if (await _android.areNotificationsEnabled() != true) return false;
+    }
+    final channels = await _android.getNotificationChannels() ?? [];
+    if (channels.any(
+      (channel) =>
+          channel.id == _investmentChannelId &&
+          channel.importance == Importance.none,
+    )) {
+      return false;
+    }
+    final location = await _deviceLocation();
+    final now = tz.TZDateTime.now(location);
+    var next = tz.TZDateTime(location, now.year, now.month, 1, 9);
+    if (!next.isAfter(now)) {
+      next = tz.TZDateTime(location, now.year, now.month + 1, 1, 9);
+    }
+    await _plugin.zonedSchedule(
+      _investmentId,
+      'Revisão mensal de investimentos',
+      'Confira seus extratos e atualize os valores no Finance App.',
+      next,
+      _investment,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.wallClockTime,
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      matchDateTimeComponents: DateTimeComponents.dayOfMonthAndTime,
+    );
+    return true;
+  }
+
+  Future<tz.Location> _deviceLocation() async {
+    tzdata.initializeTimeZones();
+    final zone = await const MethodChannel('finance_app/local_backup')
+        .invokeMethod<String>('timeZone');
+    return tz.getLocation(zone ?? 'UTC');
   }
 
   Future<void> showBudgetAlert(bool exceeded) async {

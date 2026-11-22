@@ -63,7 +63,7 @@ class _CashForecastScreenState extends ConsumerState<CashForecastScreen> {
                   items: [
                     const DropdownMenuItem(
                       value: 0,
-                      child: Text('Todas as contas ativas'),
+                      child: Text('Todas as contas disponíveis'),
                     ),
                     for (final MapEntry(key: id, value: item)
                         in data.accounts.entries)

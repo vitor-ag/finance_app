@@ -11,8 +11,10 @@ class BalanceCard extends StatelessWidget {
     required this.balance,
     required this.income,
     required this.expense,
+    this.label = 'Saldo total',
     this.shortcuts,
   });
+  final String label;
   final BigInt? balance;
   final BigInt income, expense;
   final Widget? shortcuts;
@@ -68,7 +70,7 @@ class BalanceCard extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          'Saldo total',
+                          label,
                           style: theme.textTheme.labelLarge?.copyWith(
                             color: AppColors.inkOnGradient.withValues(
                               alpha: .86,

@@ -164,6 +164,8 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 title: Text(
                   entry.type == 'card_payment'
                       ? 'Pagamento de fatura'
+                      : entry.isInvestmentMovement
+                      ? 'Movimentação vinculada a um investimento'
                       : 'Pagamento vinculado a uma conta a pagar',
                 ),
               ),
@@ -173,7 +175,7 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                 title: const Text('Editar'),
                 onTap: () => Navigator.pop(context, _EntryAction.edit),
               ),
-            if (entry.type != 'card_payment')
+            if (entry.type != 'card_payment' && !entry.isInvestmentMovement)
               ListTile(
                 leading: const Icon(Symbols.content_copy_rounded),
                 title: const Text('Duplicar'),
@@ -520,7 +522,7 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
                     run(() => showTransactionForm(context, source: item)),
                 child: const Text('Editar'),
               ),
-            if (item.type != 'card_payment')
+            if (item.type != 'card_payment' && !item.isInvestmentMovement)
               TextButton(
                 onPressed: () => run(
                   () => showTransactionForm(
@@ -620,7 +622,8 @@ class TransactionsScreenState extends ConsumerState<TransactionsScreen> {
     bool linked(Transaction item) =>
         item.id!.isNegative ||
         billPayments.contains(item.id) ||
-        item.type == 'card_payment';
+        item.type == 'card_payment' ||
+        item.isInvestmentMovement;
     void filters() async {
       final value = await showAppBottomSheet<_Filters>(
         context: context,

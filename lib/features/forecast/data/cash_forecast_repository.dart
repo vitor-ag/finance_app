@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../../../core/calendar.dart';
 import '../../../data/local/database.dart';
+import '../../accounts/domain/entities/account.dart';
 import '../../recurrences/domain/entities/recurrence.dart';
 import '../domain/cash_forecast.dart';
 
@@ -33,7 +34,11 @@ class CashForecastRepository {
           (_) => db.transaction(() async {
             final accounts =
                 await (db.select(db.accounts)
-                      ..where((row) => row.isActive.equals(true))
+                      ..where(
+                        (row) =>
+                            row.isActive.equals(true) &
+                            row.type.equals(investmentAccountType).not(),
+                      )
                       ..orderBy([(row) => OrderingTerm.asc(row.name)]))
                     .get();
             return CashForecast(

@@ -10,14 +10,15 @@ O design **Violeta Vibrante** usa Outfit e Inter empacotadas no app. A aparênci
 
 ## Funcionalidades
 
-- **Início** mostra o saldo das contas ativas, o resultado do mês, a previsão de saldo, os próximos vencimentos, os maiores gastos e o consumo por categoria. Os atalhos abrem Previsão, Contas a pagar, Cartões e Recorrências. O botão de olho ativa o modo discreto.
+- **Início** mostra o saldo disponível, o patrimônio investido, o resultado do mês, a previsão de saldo, os próximos vencimentos, os maiores gastos e o consumo por categoria. Os atalhos abrem Previsão, Contas a pagar, Cartões, Recorrências e Investimentos. O botão de olho ativa o modo discreto.
 - **Previsão de saldo** projeta os próximos 30 dias a partir de hoje com base nos lançamentos agendados, recorrências, contas a pagar e faturas em aberto. Mostra o saldo por dia, o menor saldo e o primeiro dia em que o saldo projetado fica negativo. O filtro por conta exibe movimentações vinculadas. A visão geral também inclui contas e faturas sem conta de pagamento definida.
 - **Lançamentos** reúne receitas, despesas, transferências e compras no cartão. É possível pesquisar, combinar filtros, agendar, duplicar, editar e consultar a lixeira e o histórico de alterações.
 - **Planejar** reúne orçamentos mensais por categoria e metas com histórico de aportes e retiradas.
+- **Investimentos** registra posições, aportes, resgates e valores informados pelo usuário. Consulte o patrimônio bruto, o valor líquido resgatável e o saldo que já está em conta. O relatório mensal separa aportes, resgates, variação de valor e deduções no resgate. No Android, ative o lembrete local para revisar os extratos no dia 1 às 9h.
 - **Relatórios** compara receitas, despesas e resultado com o período anterior, detalha os gastos por categoria e exporta CSV e PDF.
 - **Ajustes** dá acesso a contas, cartões e faturas, categorias, contas a pagar, recorrências, notificações, segurança, aparência e backup.
 
-As movimentações mensais incluem receitas e despesas pagas e compras no cartão pela data da compra. Transferências, pagamentos de fatura e lançamentos pendentes, cancelados ou excluídos ficam fora do resultado. Consultar um mês anterior mantém o saldo atual e a situação dos vencimentos de hoje.
+As movimentações mensais incluem receitas e despesas pagas e compras no cartão pela data da compra. Transferências, pagamentos de fatura, movimentações de investimento e lançamentos pendentes, cancelados ou excluídos ficam fora do resultado de receitas e despesas. Consultar um mês anterior mantém o saldo atual e a situação dos vencimentos de hoje.
 
 Em **Ajustes → Backup e restauração**, você pode criar um arquivo cifrado, restaurar uma cópia ou escolher uma pasta para backups automáticos. No Android, o backup pelo Google Drive continua opcional. A senha do backup é independente da senha de acesso. [Configuração do Google Drive](docs/backup-google-drive.md)
 
@@ -25,7 +26,7 @@ Em **Ajustes → Notificações**, você pode configurar o horário do lembrete 
 
 ## Validação
 
-Os testes cobrem regras financeiras, migrações do SQLite, backups, fluxos de interface e navegação adaptativa. A versão 8 do banco adiciona orçamentos, histórico de metas, anexos e os novos campos de apresentação. A restauração aceita também backups do esquema 7.
+Os testes cobrem regras financeiras, migrações do SQLite, backups, fluxos de interface e navegação adaptativa. A versão 9 do banco adiciona a carteira e o histórico de investimentos. A restauração aceita também backups dos esquemas 7 e 8.
 
 ### Validação em um aparelho Android
 

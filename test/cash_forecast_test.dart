@@ -36,6 +36,15 @@ void main() {
           ),
         );
     final cards = CreditCardRepository(db);
+    await db
+        .into(db.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            name: 'Investimento legado',
+            type: 'investment',
+            currentBalanceCents: const Value(50000),
+          ),
+        );
     final card = await cards.createCard(
       name: 'Cartão',
       limitCents: 200000,
@@ -91,6 +100,7 @@ void main() {
     addTearDown(forecast.cancel);
     expect(await forecast.moveNext(), isTrue);
     final before = forecast.current;
+    expect(before.accounts.keys, unorderedEquals([bank, wallet]));
     final total = before.forAccount();
     expect(total.opening, BigInt.from(180000));
     expect(total.income, BigInt.from(400000));

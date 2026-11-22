@@ -28,6 +28,7 @@ import 'features/bills/presentation/screens/bills_screen.dart';
 import 'features/credit_cards/presentation/credit_cards_screen.dart';
 import 'features/dashboard/presentation/screens/dashboard_screen.dart';
 import 'features/forecast/presentation/cash_forecast_screen.dart';
+import 'features/investments/presentation/investments_screen.dart';
 import 'features/notifications/data/android_reminder_notifications.dart';
 import 'features/notifications/data/planning_reminders.dart';
 import 'features/notifications/data/reminder_settings_store.dart';
@@ -387,6 +388,10 @@ class _RootScreenState extends State<RootScreen>
           MaterialPageRoute(builder: (_) => const CashForecastScreen()),
         ),
         onOpenCategory: _openCategory,
+        onOpenInvestments: () => Navigator.push<void>(
+          context,
+          MaterialPageRoute(builder: (_) => const InvestmentsScreen()),
+        ),
         onSettings: _settings,
         onNew: _new,
         onReports: () => _select(3),

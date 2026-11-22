@@ -17,6 +17,7 @@ import '../../../credit_cards/presentation/credit_card_providers.dart';
 import '../../../forecast/domain/cash_forecast.dart';
 import '../../../forecast/presentation/cash_event_tile.dart';
 import '../../../forecast/presentation/cash_forecast_provider.dart';
+import '../../../investments/presentation/investment_providers.dart';
 import '../../../reports/category_chart.dart';
 import '../../../reports/finance_summary.dart';
 import '../../../transactions/presentation/providers/transaction_providers.dart';
@@ -30,6 +31,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
     required this.onOpenCard,
     required this.onOpenRecurrences,
     required this.onOpenForecast,
+    required this.onOpenInvestments,
     required this.onOpenCategory,
     required this.onSettings,
     required this.onNew,
@@ -42,6 +44,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
       onOpenCards,
       onOpenRecurrences,
       onOpenForecast,
+      onOpenInvestments,
       onSettings,
       onReports,
       onPlanning,
@@ -63,6 +66,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final month = _selectedMonth ?? firstOfMonth(now);
     final accounts = ref.watch(allAccountsProvider);
     final forecast = ref.watch(cashForecastProvider);
+    final investments = ref.watch(investmentPortfolioProvider).valueOrNull;
     final transactions = ref.watch(allTransactionsProvider);
     final purchases = ref.watch(cardPurchasesProvider).valueOrNull ?? [];
     final history = ref.watch(financeHistoryProvider);
@@ -81,7 +85,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     };
     final overview = history.valueOrNull?.months[month] ?? FinanceSummary();
     final balance = accounts.valueOrNull
-        ?.where((item) => item.isActive)
+        ?.where((item) => item.isAvailableCash)
         .fold(
           BigInt.zero,
           (sum, item) => sum + BigInt.from(item.currentBalanceCents),
@@ -146,6 +150,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         const SizedBox(height: 4),
         BalanceCard(
+          label: 'Saldo disponível',
           balance: balance,
           income: overview.income,
           expense: overview.expense,
@@ -169,6 +174,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Symbols.repeat_rounded,
                 widget.onOpenRecurrences,
               ),
+              (
+                'Investimentos',
+                Symbols.trending_up_rounded,
+                widget.onOpenInvestments,
+              ),
             ])
               ActionChip(
                 avatar: Icon(icon, size: 18),
@@ -185,6 +195,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
           ],
         ),
+        if (investments != null &&
+            (investments.positions.isNotEmpty ||
+                investments.legacyAccounts.isNotEmpty)) ...[
+          const SizedBox(height: 12),
+          AppSurface(
+            onTap: widget.onOpenInvestments,
+            child: Wrap(
+              spacing: 24,
+              runSpacing: 8,
+              children: [
+                for (final (label, amount) in [
+                  (
+                    'Patrimônio investido',
+                    investments.value + investments.legacyValue,
+                  ),
+                  ('Resgatável informado', investments.redeemable),
+                ])
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label, style: theme.textTheme.bodySmall),
+                      MoneyText.total(amount),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ],
         if (history.hasValue && !failed) ...[
           const SizedBox(height: 16),
           AppSurface(
