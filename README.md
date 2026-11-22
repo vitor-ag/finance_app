@@ -20,12 +20,15 @@ A navegação abre em **Início** e inclui **Lançamentos**, o atalho central **
 | Metas financeiras (RF12) | Cadastro e edição com valor-alvo, prazo e conta de referência opcional. A reserva manual permite registrar valores e acompanhar percentual, valor restante e situação da meta. | — |
 | Dashboard (RF14) | Saldo atual das contas ativas, entradas, saídas e resultado para o mês selecionado, além de valores e lista de contas vencidas e a vencer. | O patrimônio investido será integrado quando o módulo de investimentos estiver disponível. |
 | Notificações locais (RF18) | Lembretes de contas pendentes no Android, com antecedência e horário configuráveis e botão de teste. O agendamento é atualizado ao editar, pagar ou cancelar uma conta. | Alertas de fechamento de fatura e de limite de orçamento serão integrados com os respectivos módulos. |
-| Segurança (RF20) | Senha local, biometria opcional, espera progressiva e bloqueio automático em **Mais → Configurações → Segurança** no Android. | Recuperação por restauração de backup criptografado. |
+| Backup em nuvem | Cópias criptografadas, restauração e sincronização opcional entre aparelhos Android em **Mais → Configurações → Backup em nuvem**. | Validação OAuth com contas Google reais no APK de distribuição. |
+| Segurança (RF20) | Senha local, biometria opcional, espera progressiva e bloqueio automático em **Mais → Configurações → Segurança** no Android. | Recuperação pela tela de bloqueio. |
 | Tema (RF21) | Temas claro e escuro conforme a configuração do aparelho. | Incluir um seletor manual caso a alternância deva ser feita dentro do app. |
 
 As movimentações mensais incluem entradas e saídas pagas no mês selecionado. Transferências, lançamentos pendentes, cancelados e excluídos ficam fora do resultado. O saldo atual e as contas pendentes refletem a situação de hoje, mesmo ao consultar meses anteriores.
 
 Em **Mais → Notificações**, ative os lembretes, salve as preferências e autorize as notificações no Android. Os avisos são locais. O Android pode ajustar o horário de entrega conforme as condições do aparelho.
+
+Para habilitar o backup em uma distribuição própria, configure a assinatura do APK e as credenciais Android no seu projeto Google Cloud. [Configuração, migração e testes do Google Drive](docs/backup-google-drive.md)
 
 Para fechar o MVP, faltam backup e restauração local. Cartões, parcelamento, faturas, investimentos, tags e filtros avançados estão previstos na v1.1. Orçamento, análises e exportação CSV/JSON estão previstos na v1.2.
 
@@ -39,7 +42,7 @@ A versão 3 usa centavos inteiros para saldos e valores. A migração mantém os
 
 O aplicativo oculta a prévia na lista de apps recentes. No Android 12 e anteriores, o mecanismo disponível também bloqueia capturas de tela.
 
-1. Em uma instalação nova, confirme que a criação de senha antecede o dashboard e que senhas diferentes são rejeitadas. Em uma atualização sobre a versão anterior, confirme que a criação de senha preserva contas e lançamentos.
+1. Em uma instalação nova, confirme que a criação de senha antecede o dashboard e que senhas diferentes são rejeitadas. Em uma atualização com o mesmo pacote e certificado, confira se as contas e os lançamentos continuam disponíveis.
 2. Encerre e reabra o app. Confira que o desbloqueio é obrigatório. Use o prazo de 30 segundos e teste o retorno antes e depois do prazo, inclusive com uma tela financeira ou formulário aberto. Repita com bloqueio imediato.
 3. Erre a senha três vezes. Confira a espera de 5 segundos, o aumento após outro erro e a persistência ao reabrir. Reinicie o aparelho e confirme que a senha cadastrada continua válida e o app abre bloqueado.
 4. Com uma biometria forte cadastrada, ative-a, cancele um prompt e desbloqueie por senha. Depois desbloqueie por biometria, altere o cadastro biométrico no Android e confirme que o app exige a senha antes de reativá-la. Em aparelho sem biometria cadastrada, confira que a opção fica indisponível.

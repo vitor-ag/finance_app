@@ -8,7 +8,7 @@
 
 Um aplicativo mobile de finanças pessoais que dá ao usuário uma visão completa e confiável da própria vida financeira — receitas, despesas, contas, cartões, investimentos, metas e orçamento — **sem depender de nenhum servidor, backend ou nuvem** para funcionar. Todo o processamento e armazenamento acontece no dispositivo. A internet, se um dia for usada, servirá apenas para recursos opcionais (backup em nuvem, por exemplo), nunca para o núcleo do app.
 
-O diferencial central não é "mais um app de finanças", mas sim: **privacidade real** (nenhum dado financeiro sai do celular), **funcionamento 100% offline** e uma experiência de registro de lançamentos extremamente rápida.
+O diferencial central é preservar a **privacidade por padrão**, oferecer **funcionamento offline** e agilizar o registro de lançamentos. Ao optar pelo backup em nuvem, a pessoa envia cópias criptografadas para a área privada do app na própria conta Google.
 
 ### Público-alvo
 
@@ -22,7 +22,9 @@ O diferencial central não é "mais um app de finanças", mas sim: **privacidade
 
 **Dentro do escopo (MVP + evoluções previstas):** contas/carteiras, categorias, lançamentos de entrada/saída, transferências, cartões de crédito com parcelamento, contas a pagar (fixas/recorrentes/eventuais), metas, orçamento, investimentos (registro manual), dashboard, notificações locais, backup/restore local, segurança (senha local e biometria), dark/light mode.
 
-**Fora do escopo inicial (futuro/opcional):** sincronização em nuvem, múltiplos usuários/contas compartilhadas, integração com Open Finance/bancos, OCR de comprovantes, leitura de notificações bancárias, IA/ML para previsões, versão iOS.
+**Evolução opcional para Android:** backup e sincronização entre aparelhos pela conta Google do usuário.
+
+**Fora do escopo inicial (futuro/opcional):** múltiplos usuários/contas compartilhadas, integração com Open Finance/bancos, OCR de comprovantes, leitura de notificações bancárias, IA/ML para previsões, versão iOS.
 
 ---
 
@@ -237,7 +239,7 @@ Contas/carteiras · Categorias · Entradas · Saídas · Transferências · Dash
 
 **v1.2:** Orçamento planejado x realizado com indicadores visuais · Análises descritivas e variações anormais · Exportação CSV/JSON · Segurança (senha local e biometria).
 
-**Futuro:** Backup em nuvem opcional (Drive/OneDrive/Dropbox) · Relatórios em PDF · Previsão de saldo futuro (cálculo determinístico) · Controle de dívidas/empréstimos entre pessoas · Widget de saldo na home · OCR de comprovantes · Versão iOS.
+**Futuro:** Integrações com OneDrive e Dropbox · Relatórios em PDF · Previsão de saldo futuro (cálculo determinístico) · Controle de dívidas/empréstimos entre pessoas · Widget de saldo na home · OCR de comprovantes · Versão iOS.
 
 ## 17. Riscos e Decisões Arquiteturais Importantes
 
@@ -258,7 +260,7 @@ Contas/carteiras · Categorias · Entradas · Saídas · Transferências · Dash
 ## 19. Backup criptografado e recuperação
 
 - A senha de acesso é local ao aparelho. A senha de criptografia protege os backups portáteis e continua válida para backups anteriores quando a senha de acesso muda. Backups incluem os dados financeiros e a versão do esquema. Credenciais locais, tentativas de acesso e chaves biométricas ficam fora do arquivo.
-- Antes de oferecer restauração, implementar um formato versionado com criptografia autenticada, salt aleatório e parâmetros de derivação documentados. Verificar autenticidade, integridade e compatibilidade antes de substituir dados. Uma falha de senha, leitura, validação ou importação deve preservar o banco existente.
-- A integração opcional com o Drive permitirá vincular a conta Google, buscar um backup e usar a senha de criptografia para validá-lo. Em outro aparelho, o desbloqueio dos dados restaurados exigirá o cadastro de uma senha de acesso local. O login Google concede acesso ao arquivo. A senha do backup concede acesso aos dados.
-- O envio automático dependerá de autorização explícita. A chave de envio deverá ficar protegida no Android Keystore e só viabilizar a criação de arquivos criptografados. A restauração em outro Android deverá depender da senha do backup e do arquivo, sem depender do Keystore original.
-- O app funciona sem servidor e não oferece recuperação de senha por e-mail. Quando a restauração estiver disponível, o fluxo de senha esquecida exigirá um backup válido e sua senha de criptografia antes de substituir os dados locais e cadastrar uma nova senha de acesso. Sem essa etapa implementada, o desbloqueio depende da senha local ou da biometria previamente ativada e ainda válida.
+- O backup usa um formato versionado com criptografia autenticada e salt aleatório por arquivo. O app verifica integridade e compatibilidade antes de confirmar a substituição do banco. Uma falha de senha, leitura, validação ou importação preserva os dados existentes. [Formato e derivação de chaves](backup-google-drive.md#formato-e-proteção)
+- A autorização Google dá acesso à área privada de backups da conta. A senha de criptografia dá acesso ao conteúdo. Para restaurar em outro aparelho, crie a senha de acesso local e informe a senha de criptografia em **Backup em nuvem**.
+- Mediante autorização explícita, a sincronização automática usa a chave derivada protegida pelo Android Keystore para enviar e importar alterações. Cada instalação deve autorizar o recurso. Edições concorrentes preservam as duas versões até uma escolha explícita. Após um envio válido, o app conserva dez versões do histórico e mantém as versões concorrentes pendentes.
+- O app funciona sem servidor. A recuperação de senha esquecida pela tela de bloqueio é uma evolução separada. O desbloqueio da instalação existente depende da senha local ou da biometria previamente ativada e ainda válida.
