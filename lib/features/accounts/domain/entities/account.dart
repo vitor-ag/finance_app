@@ -12,6 +12,8 @@ class Account {
   final DateTime createdAt;
   final String? notes;
 
+  bool get isAvailableCash => isActive && type != investmentAccountType;
+
   const Account({
     this.id,
     required this.name,
@@ -51,3 +53,5 @@ class Account {
     );
   }
 }
+
+const investmentAccountType = 'investment';

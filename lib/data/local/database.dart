@@ -14,6 +14,7 @@ import 'tables/categories_table.dart';
 import 'tables/credit_cards_table.dart';
 import 'tables/goals_table.dart';
 import 'tables/goal_movements_table.dart';
+import 'tables/investments_table.dart';
 import 'tables/recurrences_table.dart';
 import 'tables/transaction_revisions_table.dart';
 import 'tables/transactions_table.dart';
@@ -36,6 +37,8 @@ part 'database.g.dart';
     CardInstallments,
     Budgets,
     GoalMovements,
+    Investments,
+    InvestmentMovements,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -44,7 +47,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -146,6 +149,12 @@ class AppDatabase extends _$AppDatabase {
       }
       await migrator.createTable(budgets);
       await migrator.createTable(goalMovements);
+    }
+    if (from < 9) {
+      // Legacy investment accounts keep their balances and transaction links.
+      await migrator.createTable(investments);
+      await migrator.createTable(investmentMovements);
+      await migrator.createIndex(investmentMovementsByPosition);
     }
   }
 

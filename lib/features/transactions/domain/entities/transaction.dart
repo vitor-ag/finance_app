@@ -16,6 +16,9 @@ class Transaction {
   final DateTime createdAt;
   final DateTime? deletedAt;
 
+  bool get isInvestmentMovement =>
+      type == investmentContributionType || type == investmentRedemptionType;
+
   const Transaction({
     this.id,
     required this.type,
@@ -70,3 +73,6 @@ class Transaction {
     );
   }
 }
+
+const investmentContributionType = 'investment_contribution';
+const investmentRedemptionType = 'investment_redemption';

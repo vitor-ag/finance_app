@@ -9,6 +9,34 @@ import 'package:finance_app/features/notifications/domain/reminder_settings.dart
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('upgrades version 8 with existing investment accounts', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'finance_investments_',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/legacy.sqlite');
+    final previous = _LegacyDatabase(NativeDatabase(file), 8);
+    await previous
+        .into(previous.accounts)
+        .insert(
+          AccountsCompanion.insert(
+            name: 'Investimentos antigos',
+            type: 'investment',
+            currentBalanceCents: const Value(12500),
+          ),
+        );
+    await previous.close();
+
+    final db = AppDatabase.forTesting(NativeDatabase(file));
+    addTearDown(db.close);
+    expect(
+      (await db.select(db.accounts).getSingle()).currentBalanceCents,
+      12500,
+    );
+    expect(await db.select(db.investments).get(), isEmpty);
+    expect(await db.select(db.investmentMovements).get(), isEmpty);
+  });
+
   test('upgrades version 6 while preserving existing account data', () async {
     final directory = await Directory.systemTemp.createTemp(
       'finance_cards_migration_',
@@ -73,7 +101,7 @@ void main() {
     final version = await reopenedDb
         .customSelect('PRAGMA user_version')
         .getSingle();
-    expect(version.read<int>('user_version'), 8);
+    expect(version.read<int>('user_version'), 9);
     expect(
       (await reopenedDb.select(reopenedDb.accounts).getSingle())
           .currentBalanceCents,
@@ -255,10 +283,13 @@ class _LegacyDatabase extends AppDatabase {
   List<DatabaseSchemaEntity> get allSchemaEntities => super.allSchemaEntities
       .where(
         (entity) =>
-            entity != budgets &&
-            entity != goalMovements &&
+            entity != investments &&
+            entity != investmentMovements &&
+            entity != investmentMovementsByPosition &&
+            (schemaVersion >= 8 ||
+                (entity != budgets && entity != goalMovements)) &&
             (schemaVersion >= 7 ||
-                  !<DatabaseSchemaEntity>[
+                !<DatabaseSchemaEntity>[
                   creditCards,
                   cardPurchases,
                   cardPayments,
@@ -273,6 +304,7 @@ class _LegacyDatabase extends AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (migrator) async {
       await migrator.createAll();
+      if (schemaVersion >= 8) return;
       await customStatement('ALTER TABLE categories DROP COLUMN position');
       await customStatement('ALTER TABLE transactions DROP COLUMN note');
       await customStatement('ALTER TABLE transactions DROP COLUMN photo');

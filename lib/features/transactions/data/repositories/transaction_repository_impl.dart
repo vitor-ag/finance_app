@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../../../core/money.dart';
+import '../../../accounts/domain/entities/account.dart';
 
 import '../../../../data/local/database.dart';
 import '../../domain/entities/transaction.dart';
@@ -181,7 +182,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
           'Este lançamento não está mais disponível no histórico.',
         );
       }
-      await _ensureNotBillPayment(id);
+      await _ensureIndependent(previous);
       await _validate(transaction, previous: previous);
 
       await _recordRevision('edit', previous);
@@ -211,7 +212,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
     return db.transaction(() async {
       final entry = await getTransactionById(id);
       if (entry == null || entry.deletedAt != null) return;
-      await _ensureNotBillPayment(id);
+      await _ensureIndependent(entry);
       await _recordRevision('delete', entry);
       await _applyBalanceEffect(entry, reverse: true);
       await (db.update(db.transactions)..where((tbl) => tbl.id.equals(id)))
@@ -246,6 +247,7 @@ class TransactionRepositoryImpl implements TransactionRepository {
     return db.transaction(() async {
       final entry = await getTransactionById(id);
       if (entry == null || entry.deletedAt == null) return;
+      await _ensureIndependent(entry);
       await _recordRevision('restore', entry);
       await _applyBalanceEffect(entry);
       await (db.update(db.transactions)..where((tbl) => tbl.id.equals(id)))
@@ -253,7 +255,46 @@ class TransactionRepositoryImpl implements TransactionRepository {
     });
   }
 
-  Future<void> _ensureNotBillPayment(int transactionId) async {
+  Future<int> recordInvestmentMovement({
+    required int accountId,
+    required int cents,
+    required bool contribution,
+    required DateTime date,
+    required String description,
+  }) async {
+    validatePositiveCents(cents);
+    return db.transaction(() async {
+      final account = await (db.select(
+        db.accounts,
+      )..where((row) => row.id.equals(accountId))).getSingleOrNull();
+      if (account == null ||
+          !account.isActive ||
+          account.type == investmentAccountType) {
+        throw StateError('Selecione uma conta disponível para movimentar.');
+      }
+      final id = await db
+          .into(db.transactions)
+          .insert(
+            TransactionsCompanion.insert(
+              type: contribution
+                  ? investmentContributionType
+                  : investmentRedemptionType,
+              amountCents: cents,
+              date: date,
+              accountId: accountId,
+              description: Value(description),
+            ),
+          );
+      await _adjustAccountBalance(accountId, contribution ? -cents : cents);
+      return id;
+    });
+  }
+
+  Future<void> _ensureIndependent(Transaction entry) async {
+    if (entry.isInvestmentMovement) {
+      throw StateError('Este lançamento está vinculado a um investimento.');
+    }
+    final transactionId = entry.id!;
     final cardPayment =
         await (db.select(db.cardPayments)
               ..where((row) => row.transactionId.equals(transactionId))

@@ -35,7 +35,10 @@ class DriveSync {
     final digest = await local.digest();
     final baseline = await database.baseline(account);
     final base = baseline?.clock ?? const {};
-    final dirty = digest != baseline?.digest;
+    final dirty =
+        digest != baseline?.digest &&
+        (baseline == null ||
+            !await local.matchesBeforeInvestments(baseline.digest));
 
     if (heads.isEmpty) {
       if (baseline != null && !manual) {

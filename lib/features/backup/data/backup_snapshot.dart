@@ -6,6 +6,7 @@ import 'package:drift/drift.dart';
 import '../../../data/local/database.dart';
 
 typedef BackupClock = Map<String, int>;
+const _investmentTables = {'investments', 'investment_movements'};
 
 class BackupProblem implements Exception {
   const BackupProblem(this.message, {this.retry = false});
@@ -30,6 +31,20 @@ class BackupSnapshot {
 
   Future<String> digest() async =>
       base64UrlEncode((await Sha256().hash(encode())).bytes);
+
+  Future<bool> matchesBeforeInvestments(String digest) async {
+    if (_investmentTables.any(
+      (table) =>
+          _rows[table]?.isNotEmpty == true || _sequences.containsKey(table),
+    )) {
+      return false;
+    }
+    final previous = BackupSnapshot._({
+      for (final MapEntry(:key, :value) in _rows.entries)
+        if (!_investmentTables.contains(key)) key: value,
+    }, _sequences);
+    return await previous.digest() == digest;
+  }
 }
 
 typedef BackupBaseline = ({BackupClock clock, String digest});
@@ -120,7 +135,8 @@ class BackupDatabase {
     });
   }
 
-  bool supportsVersion(int version) => version == schemaVersion || version == 7;
+  bool supportsVersion(int version) =>
+      version == schemaVersion || version == 7 || version == 8;
 
   BackupSnapshot decode(List<int> data, int version) {
     if (!supportsVersion(version)) {
@@ -146,6 +162,12 @@ class BackupDatabase {
         }
         encodedRows['budgets'] = [];
         encodedRows['goal_movements'] = [];
+      }
+      if (version < 9) {
+        for (final table in _investmentTables) {
+          if (encodedRows.containsKey(table)) throw const FormatException();
+          encodedRows[table] = [];
+        }
       }
       final rows = <String, List<List<Object?>>>{};
       for (final table in db.allTables) {
