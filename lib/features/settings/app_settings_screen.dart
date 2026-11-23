@@ -342,7 +342,7 @@ class _About extends StatelessWidget {
                   'Finance App',
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
-                const Text('Versão 1.0.0'),
+                const Text('Versão 1.0.1'),
                 const SizedBox(height: 12),
                 const PrivacyLabel(),
                 const SizedBox(height: 8),
